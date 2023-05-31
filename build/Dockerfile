@@ -18,7 +18,6 @@ RUN go mod download
 
 COPY cmd/indexer cmd/indexer
 COPY internal internal
-COPY pkg pkg
 
 WORKDIR $GOPATH/src/github.com/dipdup-io/starknet-id/cmd/indexer/
 RUN go build -a -o /go/bin/indexer .
