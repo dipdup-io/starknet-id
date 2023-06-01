@@ -18,6 +18,7 @@ type Storage struct {
 
 	Domains     models.IDomain
 	StarknetIds models.IStarknetId
+	Fields      models.IField
 	State       models.IState
 }
 
@@ -33,6 +34,7 @@ func Create(ctx context.Context, cfg config.Database) (Storage, error) {
 		State:       NewState(strg.Connection()),
 		StarknetIds: NewStarknetId(strg.Connection()),
 		Domains:     NewDomain(strg.Connection()),
+		Fields:      NewField(strg.Connection()),
 	}
 
 	return s, nil
@@ -78,7 +80,18 @@ func createIndices(ctx context.Context, conn *database.PgGo) error {
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_address_id_idx ON domain (address_id)`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_owner_id_idx ON domain (owner_id)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_owner_idx ON domain (owner)`); err != nil {
+			return err
+		}
+
+		// Field
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS field_name_idx ON field USING hash(name)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS field_starknet_id_idx ON field (starknet_id)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS field_key_idx ON field (namespace,starknet_id,name)`); err != nil {
 			return err
 		}
 

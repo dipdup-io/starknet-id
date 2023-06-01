@@ -23,9 +23,9 @@ const (
 
 // Transfer -
 type Transfer struct {
-	From    data.Felt `json:"from_"`
-	To      data.Felt `json:"to"`
-	TokenId data.Felt `json:"tokenId"`
+	From    data.Felt    `json:"from_"`
+	To      data.Felt    `json:"to"`
+	TokenId data.Uint256 `json:"tokenId"`
 }
 
 // VerifierDataUpdate -

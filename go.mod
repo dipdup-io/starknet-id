@@ -3,10 +3,10 @@ module github.com/dipdup-io/starknet-id
 go 1.19
 
 require (
-	github.com/dipdup-io/starknet-go-api v0.0.0-20230524130729-a6cb4095c9f8
+	github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047
 	github.com/dipdup-io/starknet-indexer v0.0.0-20230530133540-52ef3dc1e416
 	github.com/dipdup-net/go-lib v0.2.34
-	github.com/dipdup-net/indexer-sdk v0.0.0-20230413120903-791a286443f9
+	github.com/dipdup-net/indexer-sdk v0.0.0-20230601165341-3d309788b630
 	github.com/go-pg/pg/v10 v10.11.0
 	github.com/goccy/go-json v0.10.2
 	github.com/pkg/errors v0.9.1

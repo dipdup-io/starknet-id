@@ -64,7 +64,7 @@ func main() {
 	}
 
 	client := grpc.NewClient(*cfg.GRPC)
-	indexer := NewIndexer(pg)
+	indexer := NewIndexer(pg, client)
 
 	if err := modules.Connect(client, indexer, grpc.OutputMessages, printer.InputName); err != nil {
 		log.Panic().Err(err).Msg("module connect")
@@ -79,18 +79,9 @@ func main() {
 	client.Start(ctx)
 	indexer.Start(ctx)
 
-	subscriptions := make([]uint64, 0)
-	for name, sub := range cfg.GRPC.Subscriptions {
-		sub.EventFilter.Height.Gt = indexer.Height()
-
-		log.Info().Str("topic", name).Msg("subscribing...")
-		req := sub.ToGrpcFilter()
-		subId, err := client.Subscribe(ctx, req)
-		if err != nil {
-			log.Panic().Err(err).Msg("subscribing error")
-			return
-		}
-		subscriptions = append(subscriptions, subId)
+	if err := indexer.Subscribe(ctx, cfg.GRPC.Subscriptions); err != nil {
+		log.Panic().Err(err).Msg("subscribe")
+		return
 	}
 
 	signals := make(chan os.Signal, 1)
@@ -98,10 +89,9 @@ func main() {
 
 	<-signals
 
-	for i := range subscriptions {
-		if err := client.Unsubscribe(ctx, subscriptions[i]); err != nil {
-			log.Panic().Err(err).Msg("unsubscribing")
-		}
+	if err := indexer.Unsubscribe(ctx); err != nil {
+		log.Panic().Err(err).Msg("unsubscribe")
+		return
 	}
 
 	cancel()

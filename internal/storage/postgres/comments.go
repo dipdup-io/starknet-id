@@ -18,6 +18,7 @@ func makeComments(ctx context.Context, conn *database.PgGo) error {
 		storage.State{},
 		storage.StarknetId{},
 		storage.Domain{},
+		storage.Field{},
 	} {
 		typ := reflect.TypeOf(model)
 		for i := 0; i < typ.NumField(); i++ {

@@ -1,18 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/dipdup-io/starknet-go-api/pkg/data"
-	starknetid "github.com/dipdup-io/starknet-id/internal/starknet-id"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
+	"github.com/dipdup-io/starknet-indexer/pkg/grpc"
 	"github.com/dipdup-io/starknet-indexer/pkg/grpc/pb"
 	"github.com/dipdup-net/indexer-sdk/pkg/modules"
-	"github.com/goccy/go-json"
+	"github.com/dipdup-net/indexer-sdk/pkg/storage"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -27,38 +24,26 @@ const (
 	InputName = "input"
 )
 
-// EventHandler -
-type EventHandler func(ctx context.Context, event *pb.Event) error
-
 // Indexer -
 type Indexer struct {
-	storage       postgres.Storage
-	input         *modules.Input
-	blockCtx      *BlockContext
-	eventHandlers map[string]EventHandler
-	store         Store
+	client         *grpc.Client
+	storage        postgres.Storage
+	input          *modules.Input
+	channels       map[uint64]Channel
+	channelsByName map[string]Channel
 
 	wg *sync.WaitGroup
 }
 
 // NewIndexer -
-func NewIndexer(pg postgres.Storage) *Indexer {
+func NewIndexer(pg postgres.Storage, client *grpc.Client) *Indexer {
 	indexer := &Indexer{
-		storage:  pg,
-		input:    modules.NewInput(InputName),
-		blockCtx: newBlockContext(),
-		store:    NewStore(pg),
-		wg:       new(sync.WaitGroup),
-	}
-	indexer.eventHandlers = map[string]EventHandler{
-		starknetid.EventTransfer:              indexer.parseTransferEvent,
-		starknetid.EventAddrToDomainUpdate:    indexer.parseAddrToDomainUpdate,
-		starknetid.EventDomainToAddrUpdate:    indexer.parseDomainToAddrUpdate,
-		starknetid.EventStarknetIdUpdate:      indexer.parseStarknetIdUpdate,
-		starknetid.EventDomainTransfer:        indexer.parseTransferDomain,
-		starknetid.EventOnInftEquipped:        nil,
-		starknetid.EventResetSubdomainsUpdate: nil,
-		starknetid.EventVerifierDataUpdate:    nil,
+		client:         client,
+		storage:        pg,
+		input:          modules.NewInput(InputName),
+		channels:       make(map[uint64]Channel),
+		channelsByName: make(map[string]Channel),
+		wg:             new(sync.WaitGroup),
 	}
 
 	return indexer
@@ -80,20 +65,42 @@ func (indexer *Indexer) Name() string {
 	return "starknet_id_indexer"
 }
 
-// Height -
-func (indexer *Indexer) Height() uint64 {
-	return indexer.blockCtx.state.LastHeight
+// Subscribe -
+func (indexer *Indexer) Subscribe(ctx context.Context, subscriptions map[string]grpc.Subscription) error {
+	for name, sub := range subscriptions {
+		ch, ok := indexer.channelsByName[name]
+		if !ok {
+			ch = NewChannel(name, indexer.storage)
+		}
+
+		ch.Start(ctx)
+
+		sub.EventFilter.Height = &grpc.IntegerFilter{
+			Gt: ch.blockCtx.state.LastHeight,
+		}
+		log.Info().Str("topic", name).Msg("subscribing...")
+		req := sub.ToGrpcFilter()
+		subId, err := indexer.client.Subscribe(ctx, req)
+		if err != nil {
+			return errors.Wrap(err, "subscribing error")
+		}
+		indexer.channels[subId] = ch
+	}
+	return nil
 }
 
 func (indexer *Indexer) init(ctx context.Context) error {
-	state, err := indexer.storage.State.ByName(ctx, indexer.Name())
+	states, err := indexer.storage.State.List(ctx, 10, 0, storage.SortOrderAsc)
 	switch {
 	case err == nil:
-		indexer.blockCtx.state = &state
+		for i := range states {
+			ch := NewChannel(states[i].Name, indexer.storage)
+			ch.blockCtx.state = states[i]
+			indexer.channelsByName[states[i].Name] = ch
+		}
 		return nil
 	case indexer.storage.State.IsNoRows(err):
-		indexer.blockCtx.state.Name = indexer.Name()
-		return indexer.storage.State.Save(ctx, indexer.blockCtx.state)
+		return nil
 	default:
 		return err
 	}
@@ -129,35 +136,12 @@ func (indexer *Indexer) listen(ctx context.Context) {
 
 			switch typ := msg.(type) {
 			case *pb.Subscription:
-				switch {
-				case typ.GetEndOfBlock():
-					log.Info().
-						Uint64("subscription", typ.Response.Id).
-						Msg("end of block")
-
-					if err := indexer.store.Save(ctx, indexer.blockCtx); err != nil {
-						log.Err(err).Msg("saving data")
-					}
-					indexer.blockCtx.reset()
-				case typ.Event != nil:
-					if err := indexer.parseEvent(ctx, typ.Event); err != nil {
-						log.Err(err).Msg("event parsing")
-					}
-
-					log.Info().
-						Str("name", typ.Event.Name).
-						Uint64("height", typ.Event.Height).
-						Uint64("time", typ.Event.Time).
-						Uint64("id", typ.Event.Id).
-						Uint64("subscription", typ.Response.Id).
-						Str("contract", fmt.Sprintf("0x%x", typ.Event.Contract)).
-						Msg("event")
-
-					if indexer.blockCtx.state.LastHeight < typ.Event.Height {
-						indexer.blockCtx.state.LastHeight = typ.Event.Height
-						indexer.blockCtx.state.LastTime = time.Unix(int64(typ.Event.Time), 0).UTC()
-					}
+				channel, ok := indexer.channels[typ.Response.Id]
+				if !ok {
+					log.Error().Uint64("id", typ.Response.Id).Msg("unknown subscription")
 				}
+				channel.Add(typ)
+
 			default:
 				log.Info().Msgf("unknown message: %T", typ)
 			}
@@ -180,6 +164,20 @@ func (indexer *Indexer) AttachTo(name string, input *modules.Input) error {
 	return nil
 }
 
+// Unsubscribe -
+func (indexer *Indexer) Unsubscribe(ctx context.Context) error {
+	for subId, channel := range indexer.channels {
+		log.Info().Str("subscription", channel.Name()).Uint64("id", subId).Msg("unsubscribing...")
+		if err := indexer.client.Unsubscribe(ctx, subId); err != nil {
+			return errors.Wrap(err, "unsubscribing")
+		}
+		if err := channel.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Close - gracefully stops module
 func (indexer *Indexer) Close() error {
 	indexer.wg.Wait()
@@ -188,79 +186,5 @@ func (indexer *Indexer) Close() error {
 		return err
 	}
 
-	return nil
-}
-
-func (indexer *Indexer) parseEvent(ctx context.Context, event *pb.Event) error {
-	handler, ok := indexer.eventHandlers[event.Name]
-	if !ok {
-		return errors.Errorf("unknown event handler: %s", event.Name)
-	}
-	if handler == nil {
-		return nil
-	}
-
-	return handler(ctx, event)
-}
-
-func (indexer *Indexer) parseTransferEvent(ctx context.Context, event *pb.Event) error {
-	var data starknetid.Transfer
-	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
-		return errors.Wrap(err, "parsing data")
-	}
-
-	switch {
-	case bytes.Equal(data.From.Bytes(), ZeroAddress):
-		indexer.blockCtx.addMintedStarknetId(data)
-	case bytes.Equal(data.To.Bytes(), ZeroAddress):
-		indexer.blockCtx.addBurnedStarknetId(data)
-	default:
-		indexer.blockCtx.addTransferedStarknetId(data)
-	}
-
-	return nil
-}
-
-func (indexer *Indexer) parseAddrToDomainUpdate(ctx context.Context, event *pb.Event) error {
-	var data starknetid.AddrToDomainUpdate
-	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
-		return errors.Wrap(err, "parsing data")
-	}
-	if err := indexer.blockCtx.addDomains(data.Domain, data.Address); err != nil {
-		return errors.Wrap(err, "decoding domain")
-	}
-	return nil
-}
-
-func (indexer *Indexer) parseDomainToAddrUpdate(ctx context.Context, event *pb.Event) error {
-	var data starknetid.DomainToAddrUpdate
-	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
-		return errors.Wrap(err, "parsing data")
-	}
-	if err := indexer.blockCtx.addDomains(data.Domain, data.Address); err != nil {
-		return errors.Wrap(err, "decoding domain")
-	}
-	return nil
-}
-
-func (indexer *Indexer) parseStarknetIdUpdate(ctx context.Context, event *pb.Event) error {
-	var data starknetid.StarknetIdUpdate
-	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
-		return errors.Wrap(err, "parsing data")
-	}
-	if err := indexer.blockCtx.applyStaknetIdUpdate(data); err != nil {
-		return errors.Wrap(err, "decoding domain")
-	}
-	return nil
-}
-
-func (indexer *Indexer) parseTransferDomain(ctx context.Context, event *pb.Event) error {
-	var data starknetid.DomainTransfer
-	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
-		return errors.Wrap(err, "parsing data")
-	}
-	if err := indexer.blockCtx.applyDomainTransfer(data); err != nil {
-		return errors.Wrap(err, "decoding domain")
-	}
 	return nil
 }

@@ -7,4 +7,5 @@ var Models = []storage.Model{
 	&State{},
 	&StarknetId{},
 	&Domain{},
+	&Field{},
 }

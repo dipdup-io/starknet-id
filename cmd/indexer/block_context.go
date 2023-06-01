@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ type BlockContext struct {
 	mintedStarknetIds      *syncMap[string, *storage.StarknetId]
 	burnedStarknetIds      *syncMap[string, *storage.StarknetId]
 	transferredStarknetIds *syncMap[string, *storage.StarknetId]
+	fields                 *syncMap[string, *storage.Field]
 
 	state *storage.State
 }
@@ -27,8 +29,18 @@ func newBlockContext() *BlockContext {
 		mintedStarknetIds:      newSyncMap[string, *storage.StarknetId](),
 		burnedStarknetIds:      newSyncMap[string, *storage.StarknetId](),
 		transferredStarknetIds: newSyncMap[string, *storage.StarknetId](),
+		fields:                 newSyncMap[string, *storage.Field](),
 		state:                  new(storage.State),
 	}
+}
+
+func (bc *BlockContext) isEmpty() bool {
+	return bc.domains.Len() == 0 &&
+		bc.burnedStarknetIds.Len() == 0 &&
+		bc.fields.Len() == 0 &&
+		bc.mintedStarknetIds.Len() == 0 &&
+		bc.transferredDomains.Len() == 0 &&
+		bc.transferredStarknetIds.Len() == 0
 }
 
 func (bc *BlockContext) reset() {
@@ -37,6 +49,7 @@ func (bc *BlockContext) reset() {
 	bc.mintedStarknetIds.Reset()
 	bc.burnedStarknetIds.Reset()
 	bc.transferredDomains.Reset()
+	bc.fields.Reset()
 }
 
 func (bc *BlockContext) addDomains(domains []data.Felt, address data.Felt) error {
@@ -82,25 +95,40 @@ func (bc *BlockContext) applyStaknetIdUpdate(update starknetid.StarknetIdUpdate)
 	return nil
 }
 
-func (bc *BlockContext) addMintedStarknetId(transfer starknetid.Transfer) {
+func (bc *BlockContext) addMintedStarknetId(transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
 	bc.mintedStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   transfer.TokenId.Decimal(),
+		StarknetId:   tokenId,
 		OwnerAddress: transfer.To.Bytes(),
 	})
+	return nil
 }
 
-func (bc *BlockContext) addBurnedStarknetId(transfer starknetid.Transfer) {
+func (bc *BlockContext) addBurnedStarknetId(transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
 	bc.burnedStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   transfer.TokenId.Decimal(),
+		StarknetId:   tokenId,
 		OwnerAddress: transfer.From.Bytes(),
 	})
+	return nil
 }
 
-func (bc *BlockContext) addTransferedStarknetId(transfer starknetid.Transfer) {
+func (bc *BlockContext) addTransferedStarknetId(transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
 	bc.transferredStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   transfer.TokenId.Decimal(),
+		StarknetId:   tokenId,
 		OwnerAddress: transfer.To.Bytes(),
 	})
+	return nil
 }
 
 func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) error {
@@ -115,6 +143,24 @@ func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) er
 		})
 	}
 	return nil
+}
+
+func (bc *BlockContext) addField(update starknetid.VerifierDataUpdate) error {
+	starknetId := update.StarknetId.Decimal()
+	key := fmt.Sprintf("%s_%s_%d", starknetId.String(), update.Field.String(), storage.FieldNamespaceVerifier)
+	bc.fields.Set(key, &storage.Field{
+		StarknetId: starknetId,
+		Namespace:  storage.FieldNamespaceVerifier,
+		Name:       update.Field.ToAsciiString(),
+		Value:      update.Data.Bytes(),
+	})
+	return nil
+}
+
+func (bc *BlockContext) updateState(name string, height, ts uint64) {
+	bc.state.LastHeight = height
+	bc.state.LastTime = time.Unix(int64(ts), 0).UTC()
+	bc.state.Name = name
 }
 
 type syncMap[K comparable, V any] struct {
@@ -175,4 +221,29 @@ func (m *syncMap[K, V]) Reset() {
 		delete(m.m, key)
 	}
 	m.mx.Unlock()
+}
+
+// Len -
+func (m *syncMap[K, V]) Len() int {
+	m.mx.RLock()
+	defer m.mx.RUnlock()
+	return len(m.m)
+}
+
+// GetOrCreate -
+func (m *syncMap[K, V]) GetOrCreate(key K, constructor func() V) V {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+
+	if val, ok := m.m[key]; ok {
+		return val
+	} else {
+		if constructor != nil {
+			m.m[key] = constructor()
+		} else {
+			var v V
+			m.m[key] = v
+		}
+		return m.m[key]
+	}
 }
