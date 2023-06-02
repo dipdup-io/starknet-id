@@ -34,7 +34,7 @@ func NewChannel(name string, pg postgres.Storage) Channel {
 		name:     name,
 		blockCtx: newBlockContext(),
 		store:    NewStore(pg),
-		ch:       make(chan *pb.Subscription, 1024*100),
+		ch:       make(chan *pb.Subscription, 1024*1024),
 		wg:       new(sync.WaitGroup),
 	}
 

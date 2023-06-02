@@ -13,7 +13,7 @@ grpc:
           in:
             - Transfer
             - VerifierDataUpdate
-            - on_inft_equipped
+            # - on_inft_equipped
     naming:
       events:
         contract:
@@ -24,7 +24,7 @@ grpc:
             - addr_to_domain_update
             - starknet_id_update
             - domain_transfer
-            - reset_subdomains_update
+            # - reset_subdomains_update
     braavos:
       events:
         contract:

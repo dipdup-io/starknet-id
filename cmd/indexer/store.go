@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/dipdup-io/starknet-id/internal/storage"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
@@ -26,6 +27,7 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	if blockCtx.isEmpty() {
 		return nil
 	}
+	since := time.Now()
 
 	tx, err := s.pg.Transactable.BeginTransaction(ctx)
 	if err != nil {
@@ -60,6 +62,7 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 		Str("channel", blockCtx.state.Name).
 		Uint64("height", blockCtx.state.LastHeight).
 		Time("block_time", blockCtx.state.LastTime).
+		Uint64("save_time_ms", uint64(time.Since(since).Milliseconds())).
 		Msg("indexed")
 	return nil
 }

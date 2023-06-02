@@ -141,7 +141,6 @@ func (indexer *Indexer) listen(ctx context.Context) {
 					log.Error().Uint64("id", typ.Response.Id).Msg("unknown subscription")
 				}
 				channel.Add(typ)
-
 			default:
 				log.Info().Msgf("unknown message: %T", typ)
 			}

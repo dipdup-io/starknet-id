@@ -48,7 +48,7 @@ func (bc *BlockContext) reset() {
 	bc.transferredDomains.Reset()
 	bc.mintedStarknetIds.Reset()
 	bc.burnedStarknetIds.Reset()
-	bc.transferredDomains.Reset()
+	bc.transferredStarknetIds.Reset()
 	bc.fields.Reset()
 }
 
@@ -89,6 +89,7 @@ func (bc *BlockContext) applyStaknetIdUpdate(update starknetid.StarknetIdUpdate)
 			bc.domains.Set(decoded, &storage.Domain{
 				Expiry: time.Unix(int64(expiry), 0).UTC(),
 				Owner:  update.Owner.Decimal(),
+				Domain: decoded,
 			})
 		}
 	}
