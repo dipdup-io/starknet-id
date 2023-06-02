@@ -171,9 +171,7 @@ func (indexer *Indexer) Unsubscribe(ctx context.Context) error {
 		if err := indexer.client.Unsubscribe(ctx, subId); err != nil {
 			return errors.Wrap(err, "unsubscribing")
 		}
-		if err := channel.Close(); err != nil {
-			return err
-		}
+
 	}
 	return nil
 }
@@ -181,6 +179,12 @@ func (indexer *Indexer) Unsubscribe(ctx context.Context) error {
 // Close - gracefully stops module
 func (indexer *Indexer) Close() error {
 	indexer.wg.Wait()
+
+	for _, channel := range indexer.channels {
+		if err := channel.Close(); err != nil {
+			return err
+		}
+	}
 
 	if err := indexer.input.Close(); err != nil {
 		return err

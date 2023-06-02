@@ -6,6 +6,7 @@ import (
 	"github.com/dipdup-io/starknet-id/internal/storage"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
 	sdk "github.com/dipdup-net/indexer-sdk/pkg/storage"
+	"github.com/go-pg/pg/v10"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -64,52 +65,69 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 }
 
 func (s Store) saveStarknetId(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
-	if err := blockCtx.mintedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-		err := tx.Add(ctx, si)
-		return false, err
-	}); err != nil {
-		return errors.Wrap(err, "saving minted starknet id")
+	if blockCtx.mintedStarknetIds.Len() > 0 {
+		minted := make([]any, 0)
+		_ = blockCtx.mintedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
+			minted = append(minted, si)
+			return false, nil
+		})
+		if err := tx.BulkSave(ctx, minted); err != nil {
+			return errors.Wrap(err, "saving minted starknet id")
+		}
 	}
 
-	if err := blockCtx.burnedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-		_, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id = ?`, si.StarknetId.String())
-		return false, err
-	}); err != nil {
-		return errors.Wrap(err, "saving burned starknet id")
+	if blockCtx.burnedStarknetIds.Len() > 0 {
+		burned := make([]string, 0)
+		_ = blockCtx.burnedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
+			burned = append(burned, si.StarknetId.String())
+			return false, nil
+		})
+		if _, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id IN (?)`, pg.In(burned)); err != nil {
+			return errors.Wrap(err, "saving burned starknet id")
+		}
 	}
 
-	if err := blockCtx.transferredStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-		_, err := tx.Exec(ctx, `UPDATE starknet_id SET owner_address = ? WHERE starknet_id = ?`, si.OwnerAddress, si.StarknetId.String())
-		return false, err
-	}); err != nil {
-		return errors.Wrap(err, "saving transferred starknet id")
+	if blockCtx.transferredStarknetIds.Len() > 0 {
+		if err := blockCtx.transferredStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
+			_, err := tx.Exec(ctx, `UPDATE starknet_id SET owner_address = ? WHERE starknet_id = ?`, si.OwnerAddress, si.StarknetId.String())
+			return false, err
+		}); err != nil {
+			return errors.Wrap(err, "saving transferred starknet id")
+		}
 	}
 	return nil
 }
 
 func (s Store) addDomains(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
-	if err := blockCtx.domains.Range(func(k string, v *storage.Domain) (bool, error) {
-		_, err := tx.Exec(ctx, `INSERT INTO domain (address_id, address, domain, owner, expiry)
+	if blockCtx.domains.Len() > 0 {
+		if err := blockCtx.domains.Range(func(k string, v *storage.Domain) (bool, error) {
+			_, err := tx.Exec(ctx, `INSERT INTO domain (address_id, address, domain, owner, expiry)
 			VALUES (?,?,?,?,?)
 			ON CONFLICT (domain)
 			DO 
 			UPDATE SET address_id = excluded.address_id, address = excluded.address, owner = excluded.owner, expiry = excluded.expiry`,
-			v.AddressId, v.Address, v.Domain, v.Owner.String(), v.Expiry,
-		)
-		return false, err
-	}); err != nil {
-		return errors.Wrap(err, "saving domain")
+				v.AddressId, v.Address, v.Domain, v.Owner.String(), v.Expiry,
+			)
+			return false, err
+		}); err != nil {
+			return errors.Wrap(err, "saving domain")
+		}
 	}
-	if err := blockCtx.transferredDomains.Range(func(s string, si *storage.Domain) (bool, error) {
-		_, err := tx.Exec(ctx, `UPDATE domain SET owner = ? WHERE domain = ?`, si.Owner, si.Domain)
-		return false, err
-	}); err != nil {
-		return errors.Wrap(err, "saving transferred domain")
+	if blockCtx.transferredDomains.Len() > 0 {
+		if err := blockCtx.transferredDomains.Range(func(s string, si *storage.Domain) (bool, error) {
+			_, err := tx.Exec(ctx, `UPDATE domain SET owner = ? WHERE domain = ?`, si.Owner, si.Domain)
+			return false, err
+		}); err != nil {
+			return errors.Wrap(err, "saving transferred domain")
+		}
 	}
 	return nil
 }
 
 func (s Store) saveFields(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
+	if blockCtx.fields.Len() == 0 {
+		return nil
+	}
 	if err := blockCtx.fields.Range(func(k string, v *storage.Field) (bool, error) {
 		_, err := tx.Exec(ctx, `INSERT INTO field (starknet_id, name, namespace, value)
 			VALUES (?,?,?,?)
