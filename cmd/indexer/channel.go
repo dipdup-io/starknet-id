@@ -16,14 +16,16 @@ import (
 )
 
 // EventHandler -
-type EventHandler func(blockCtx *BlockContext, event *pb.Event) error
+type EventHandler func(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error
 
 // Channel -
 type Channel struct {
 	name          string
 	blockCtx      *BlockContext
+	storage       postgres.Storage
 	eventHandlers map[string]EventHandler
 	store         Store
+	failed        bool
 	ch            chan *pb.Subscription
 	wg            *sync.WaitGroup
 }
@@ -32,6 +34,7 @@ type Channel struct {
 func NewChannel(name string, pg postgres.Storage) Channel {
 	ch := Channel{
 		name:     name,
+		storage:  pg,
 		blockCtx: newBlockContext(),
 		store:    NewStore(pg),
 		ch:       make(chan *pb.Subscription, 1024*1024),
@@ -39,12 +42,12 @@ func NewChannel(name string, pg postgres.Storage) Channel {
 	}
 
 	ch.eventHandlers = map[string]EventHandler{
-		starknetid.EventTransfer:              parseTransferEvent,
-		starknetid.EventAddrToDomainUpdate:    parseAddrToDomainUpdate,
-		starknetid.EventDomainToAddrUpdate:    parseDomainToAddrUpdate,
-		starknetid.EventStarknetIdUpdate:      parseStarknetIdUpdate,
-		starknetid.EventDomainTransfer:        parseTransferDomain,
-		starknetid.EventVerifierDataUpdate:    parseVerifierDataUpdate,
+		starknetid.EventTransfer:              ch.parseTransferEvent,
+		starknetid.EventAddrToDomainUpdate:    ch.parseAddrToDomainUpdate,
+		starknetid.EventDomainToAddrUpdate:    ch.parseDomainToAddrUpdate,
+		starknetid.EventStarknetIdUpdate:      ch.parseStarknetIdUpdate,
+		starknetid.EventDomainTransfer:        ch.parseTransferDomain,
+		starknetid.EventVerifierDataUpdate:    ch.parseVerifierDataUpdate,
 		starknetid.EventOnInftEquipped:        nil,
 		starknetid.EventResetSubdomainsUpdate: nil,
 	}
@@ -70,18 +73,27 @@ func (channel Channel) listen(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case msg := <-channel.ch:
+			if channel.failed {
+				continue
+			}
+			response := msg.GetResponse()
 			switch {
-			case msg.GetEndOfBlock():
+			case msg.EndOfBlock != nil:
 				log.Info().
-					Uint64("subscription", msg.Response.Id).
+					Uint64("subscription", response.GetId()).
+					Uint64("height", msg.EndOfBlock.Height).
 					Str("channel", channel.name).
 					Msg("end of block")
 
+				channel.blockCtx.updateState(channel.name, msg.EndOfBlock.Height)
 				if err := channel.store.Save(ctx, channel.blockCtx); err != nil {
 					log.Err(err).Msg("saving data")
+					channel.failed = true
 				}
+
 			case msg.Event != nil:
-				if err := channel.parseEvent(msg.Event); err != nil {
+
+				if err := channel.parseEvent(ctx, msg.Event); err != nil {
 					log.Err(err).Msg("event parsing")
 				}
 
@@ -92,14 +104,18 @@ func (channel Channel) listen(ctx context.Context) {
 					Uint64("id", msg.Event.Id).
 					Uint64("subscription", msg.Response.Id).
 					Str("channel", channel.name).
-					Msg("event")
+					Msg("new event")
 
-				if msg.Event.Height > channel.blockCtx.state.LastHeight {
-					channel.blockCtx.updateState(channel.name, msg.Event.Height, msg.Event.Time)
-					if err := channel.store.Save(ctx, channel.blockCtx); err != nil {
-						log.Err(err).Msg("saving data")
-					}
+			case msg.Address != nil:
+				if err := channel.parseAddress(msg.Address); err != nil {
+					log.Err(err).Msg("event parsing")
 				}
+				log.Debug().
+					Uint64("height", msg.Address.Height).
+					Uint64("id", msg.Address.Id).
+					Uint64("subscription", msg.Response.Id).
+					Str("channel", channel.name).
+					Msg("new address")
 			}
 		}
 	}
@@ -123,7 +139,12 @@ func (channel Channel) State() *storage.State {
 	return channel.blockCtx.state
 }
 
-func (channel Channel) parseEvent(event *pb.Event) error {
+func (channel Channel) parseAddress(msg *pb.Address) error {
+	channel.blockCtx.addAddress(msg)
+	return nil
+}
+
+func (channel Channel) parseEvent(ctx context.Context, event *pb.Event) error {
 	handler, ok := channel.eventHandlers[event.Name]
 	if !ok {
 		return errors.Errorf("unknown event handler: %s", event.Name)
@@ -132,10 +153,10 @@ func (channel Channel) parseEvent(event *pb.Event) error {
 		return nil
 	}
 
-	return handler(channel.blockCtx, event)
+	return handler(ctx, channel.blockCtx, event)
 }
 
-func parseTransferEvent(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseTransferEvent(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.Transfer
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
@@ -143,31 +164,31 @@ func parseTransferEvent(blockCtx *BlockContext, event *pb.Event) error {
 
 	switch {
 	case bytes.Equal(data.From.Bytes(), ZeroAddress):
-		return blockCtx.addMintedStarknetId(data)
+		return blockCtx.addMintedStarknetId(ctx, channel.storage.Addresses, data)
 	case bytes.Equal(data.To.Bytes(), ZeroAddress):
-		return blockCtx.addBurnedStarknetId(data)
+		return blockCtx.addBurnedStarknetId(ctx, channel.storage.Addresses, data)
 	default:
-		return blockCtx.addTransferedStarknetId(data)
+		return blockCtx.addTransferedStarknetId(ctx, channel.storage.Addresses, data)
 	}
 }
 
-func parseAddrToDomainUpdate(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseAddrToDomainUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.AddrToDomainUpdate
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
 	}
-	return blockCtx.addDomains(data.Domain, data.Address)
+	return blockCtx.addDomains(ctx, channel.storage.Addresses, data.Domain, data.Address)
 }
 
-func parseDomainToAddrUpdate(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseDomainToAddrUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.DomainToAddrUpdate
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
 	}
-	return blockCtx.addDomains(data.Domain, data.Address)
+	return blockCtx.addDomains(ctx, channel.storage.Addresses, data.Domain, data.Address)
 }
 
-func parseStarknetIdUpdate(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseStarknetIdUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.StarknetIdUpdate
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
@@ -175,7 +196,7 @@ func parseStarknetIdUpdate(blockCtx *BlockContext, event *pb.Event) error {
 	return blockCtx.applyStaknetIdUpdate(data)
 }
 
-func parseTransferDomain(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseTransferDomain(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.DomainTransfer
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
@@ -183,7 +204,7 @@ func parseTransferDomain(blockCtx *BlockContext, event *pb.Event) error {
 	return blockCtx.applyDomainTransfer(data)
 }
 
-func parseVerifierDataUpdate(blockCtx *BlockContext, event *pb.Event) error {
+func (channel Channel) parseVerifierDataUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
 	var data starknetid.VerifierDataUpdate
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")

@@ -16,6 +16,7 @@ import (
 func makeComments(ctx context.Context, conn *database.PgGo) error {
 	for _, model := range []sdk.Model{
 		storage.State{},
+		storage.Address{},
 		storage.StarknetId{},
 		storage.Domain{},
 		storage.Field{},

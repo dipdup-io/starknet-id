@@ -18,6 +18,7 @@ type StarknetId struct {
 	Id           uint64          `pg:",pk,notnull,comment:Unique internal identity"`
 	StarknetId   decimal.Decimal `pg:",unique,type:numeric,use_zero,comment:Starknet Id (token id)"`
 	OwnerAddress []byte          `pg:",comment:Address hash of token owner"`
+	OwnerId      uint64          `pg:",comment:Owner identity of address"`
 }
 
 // TableName -

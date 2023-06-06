@@ -12,6 +12,30 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Action
+type Action int
+
+// actions
+const (
+	ActionInsert Action = iota
+	ActionUpdate
+	ActionDelete
+)
+
+// TypeWithAction -
+type TypeWithAction[T any] struct {
+	Action Action
+	Data   T
+}
+
+// NewTypeWithAction -
+func NewTypeWithAction[T any](data T, action Action) *TypeWithAction[T] {
+	return &TypeWithAction[T]{
+		Action: action,
+		Data:   data,
+	}
+}
+
 // Store -
 type Store struct {
 	pg postgres.Storage
@@ -34,6 +58,10 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 		return err
 	}
 	defer tx.Close(ctx)
+
+	if err := s.saveAddresses(ctx, tx, blockCtx); err != nil {
+		return tx.HandleError(ctx, err)
+	}
 
 	if err := s.saveStarknetId(ctx, tx, blockCtx); err != nil {
 		return tx.HandleError(ctx, err)
@@ -61,43 +89,62 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	log.Info().
 		Str("channel", blockCtx.state.Name).
 		Uint64("height", blockCtx.state.LastHeight).
-		Time("block_time", blockCtx.state.LastTime).
 		Uint64("save_time_ms", uint64(time.Since(since).Milliseconds())).
 		Msg("indexed")
 	return nil
 }
 
+func (s Store) saveAddresses(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
+	if blockCtx.addresses.Len() == 0 {
+		return nil
+	}
+	addresses := make([]any, 0)
+	if err := blockCtx.addresses.Range(func(k string, v *storage.Address) (bool, error) {
+		addresses = append(addresses, v)
+		return false, nil
+	}); err != nil {
+		return err
+	}
+
+	if err := tx.BulkSave(ctx, addresses); err != nil {
+		return errors.Wrap(err, "saving addresses")
+	}
+	return nil
+}
+
 func (s Store) saveStarknetId(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
-	if blockCtx.mintedStarknetIds.Len() > 0 {
+	if blockCtx.starknetIds.Len() > 0 {
 		minted := make([]any, 0)
-		_ = blockCtx.mintedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-			minted = append(minted, si)
-			return false, nil
-		})
-		if err := tx.BulkSave(ctx, minted); err != nil {
-			return errors.Wrap(err, "saving minted starknet id")
-		}
-	}
-
-	if blockCtx.burnedStarknetIds.Len() > 0 {
 		burned := make([]string, 0)
-		_ = blockCtx.burnedStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-			burned = append(burned, si.StarknetId.String())
-			return false, nil
-		})
-		if _, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id IN (?)`, pg.In(burned)); err != nil {
-			return errors.Wrap(err, "saving burned starknet id")
-		}
-	}
+		if err := blockCtx.starknetIds.Range(func(s string, typ *TypeWithAction[*storage.StarknetId]) (bool, error) {
+			switch typ.Action {
+			case ActionDelete:
+				burned = append(burned, typ.Data.StarknetId.String())
+			case ActionInsert:
+				minted = append(minted, typ.Data)
+			case ActionUpdate:
+				_, err := tx.Exec(ctx,
+					`UPDATE starknet_id SET owner_address = ?, owner_id = ? WHERE starknet_id = ?`,
+					typ.Data.OwnerAddress, typ.Data.OwnerId, typ.Data.StarknetId.String())
+				return false, err
+			}
 
-	if blockCtx.transferredStarknetIds.Len() > 0 {
-		if err := blockCtx.transferredStarknetIds.Range(func(s string, si *storage.StarknetId) (bool, error) {
-			_, err := tx.Exec(ctx, `UPDATE starknet_id SET owner_address = ? WHERE starknet_id = ?`, si.OwnerAddress, si.StarknetId.String())
-			return false, err
+			return false, nil
 		}); err != nil {
 			return errors.Wrap(err, "saving transferred starknet id")
 		}
+		if len(minted) > 0 {
+			if err := tx.BulkSave(ctx, minted); err != nil {
+				return errors.Wrap(err, "saving minted starknet id")
+			}
+		}
+		if len(burned) > 0 {
+			if _, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id IN (?)`, pg.In(burned)); err != nil {
+				return errors.Wrap(err, "saving burned starknet id")
+			}
+		}
 	}
+
 	return nil
 }
 

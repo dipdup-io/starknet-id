@@ -26,7 +26,7 @@ services:
       - db:/var/lib/postgres/data
       - /etc/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf
     ports:
-      - 127.0.0.1:5432:5432
+      - 127.0.0.1:5433:5432
     environment:
       - POSTGRES_HOST=${POSTGRES_HOST:-db}
       - POSTGRES_USER=${POSTGRES_USER:-dipdup}
@@ -46,7 +46,7 @@ services:
   hasura:
     image: hasura/graphql-engine:v2.22.0
     ports:
-      - 127.0.0.1:8080:8080
+      - 127.0.0.1:8081:8080
     restart: always
     environment:
       - HASURA_GRAPHQL_DATABASE_URL=postgres://dipdup:${POSTGRES_PASSWORD:-changeme}@db:5432/starknet_id

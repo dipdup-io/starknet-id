@@ -75,8 +75,26 @@ func (indexer *Indexer) Subscribe(ctx context.Context, subscriptions map[string]
 
 		ch.Start(ctx)
 
-		sub.EventFilter.Height = &grpc.IntegerFilter{
-			Gt: ch.blockCtx.state.LastHeight,
+		if sub.EventFilter != nil {
+			for i := range sub.EventFilter {
+				sub.EventFilter[i].Height = &grpc.IntegerFilter{
+					Gt: ch.blockCtx.state.LastHeight,
+				}
+			}
+
+		}
+		if sub.AddressFilter != nil {
+			lastId, err := indexer.storage.Addresses.LastID(ctx)
+			if err != nil {
+				if !indexer.storage.Addresses.IsNoRows(err) {
+					return err
+				}
+			}
+			for i := range sub.AddressFilter {
+				sub.AddressFilter[i].Id = &grpc.IntegerFilter{
+					Gt: lastId,
+				}
+			}
 		}
 		log.Info().Str("topic", name).Msg("subscribing...")
 		req := sub.ToGrpcFilter()
@@ -139,6 +157,7 @@ func (indexer *Indexer) listen(ctx context.Context) {
 				channel, ok := indexer.channels[typ.Response.Id]
 				if !ok {
 					log.Error().Uint64("id", typ.Response.Id).Msg("unknown subscription")
+					continue
 				}
 				channel.Add(typ)
 			default:

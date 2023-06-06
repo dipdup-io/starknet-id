@@ -4,9 +4,9 @@ go 1.19
 
 require (
 	github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047
-	github.com/dipdup-io/starknet-indexer v0.0.0-20230530133540-52ef3dc1e416
+	github.com/dipdup-io/starknet-indexer v0.0.0-20230606124733-d01b7cfa1e10
 	github.com/dipdup-net/go-lib v0.2.34
-	github.com/dipdup-net/indexer-sdk v0.0.0-20230601165341-3d309788b630
+	github.com/dipdup-net/indexer-sdk v0.0.0-20230606123933-f7206850018d
 	github.com/go-pg/pg/v10 v10.11.0
 	github.com/goccy/go-json v0.10.2
 	github.com/pkg/errors v0.9.1
@@ -18,6 +18,7 @@ require (
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
+	github.com/dipdup-net/workerpool v0.0.2 // indirect
 	github.com/ethereum/go-ethereum v1.11.4 // indirect
 	github.com/go-pg/zerochecker v0.2.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -32,6 +33,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/karlseguin/ccache/v2 v2.0.8 // indirect
 	github.com/leodido/go-urn v1.2.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
@@ -49,6 +51,7 @@ require (
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect

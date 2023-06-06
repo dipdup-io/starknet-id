@@ -16,6 +16,7 @@ import (
 type Storage struct {
 	*postgres.Storage
 
+	Addresses   models.IAddress
 	Domains     models.IDomain
 	StarknetIds models.IStarknetId
 	Fields      models.IField
@@ -32,6 +33,7 @@ func Create(ctx context.Context, cfg config.Database) (Storage, error) {
 	s := Storage{
 		Storage:     strg,
 		State:       NewState(strg.Connection()),
+		Addresses:   NewAddress(strg.Connection()),
 		StarknetIds: NewStarknetId(strg.Connection()),
 		Domains:     NewDomain(strg.Connection()),
 		Fields:      NewField(strg.Connection()),
@@ -62,6 +64,11 @@ func initDatabase(ctx context.Context, conn *database.PgGo) error {
 func createIndices(ctx context.Context, conn *database.PgGo) error {
 	log.Info().Msg("creating indexes...")
 	return conn.DB().RunInTransaction(ctx, func(tx *pg.Tx) error {
+		// Address
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS address_hash_idx ON address (hash)`); err != nil {
+			return err
+		}
+
 		// Starknet id
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS starknet_identity_idx ON starknet_id (starknet_id)`); err != nil {
 			return err

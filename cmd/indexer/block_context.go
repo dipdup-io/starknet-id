@@ -1,59 +1,78 @@
 package main
 
 import (
+	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/dipdup-io/starknet-go-api/pkg/data"
+	"github.com/dipdup-io/starknet-go-api/pkg/encoding"
 	starknetid "github.com/dipdup-io/starknet-id/internal/starknet-id"
 	"github.com/dipdup-io/starknet-id/internal/storage"
+	"github.com/dipdup-io/starknet-indexer/pkg/grpc/pb"
 )
 
 // BlockContext -
 type BlockContext struct {
-	domains                *syncMap[string, *storage.Domain]
-	transferredDomains     *syncMap[string, *storage.Domain]
-	mintedStarknetIds      *syncMap[string, *storage.StarknetId]
-	burnedStarknetIds      *syncMap[string, *storage.StarknetId]
-	transferredStarknetIds *syncMap[string, *storage.StarknetId]
-	fields                 *syncMap[string, *storage.Field]
+	domains            *syncMap[string, *storage.Domain]
+	transferredDomains *syncMap[string, *storage.Domain]
+	starknetIds        *syncMap[string, *TypeWithAction[*storage.StarknetId]]
+	fields             *syncMap[string, *storage.Field]
+	addresses          *syncMap[string, *storage.Address]
 
 	state *storage.State
 }
 
 func newBlockContext() *BlockContext {
 	return &BlockContext{
-		domains:                newSyncMap[string, *storage.Domain](),
-		transferredDomains:     newSyncMap[string, *storage.Domain](),
-		mintedStarknetIds:      newSyncMap[string, *storage.StarknetId](),
-		burnedStarknetIds:      newSyncMap[string, *storage.StarknetId](),
-		transferredStarknetIds: newSyncMap[string, *storage.StarknetId](),
-		fields:                 newSyncMap[string, *storage.Field](),
-		state:                  new(storage.State),
+		domains:            newSyncMap[string, *storage.Domain](),
+		transferredDomains: newSyncMap[string, *storage.Domain](),
+		starknetIds:        newSyncMap[string, *TypeWithAction[*storage.StarknetId]](),
+		fields:             newSyncMap[string, *storage.Field](),
+		addresses:          newSyncMap[string, *storage.Address](),
+		state:              new(storage.State),
 	}
 }
 
 func (bc *BlockContext) isEmpty() bool {
 	return bc.domains.Len() == 0 &&
-		bc.burnedStarknetIds.Len() == 0 &&
 		bc.fields.Len() == 0 &&
-		bc.mintedStarknetIds.Len() == 0 &&
 		bc.transferredDomains.Len() == 0 &&
-		bc.transferredStarknetIds.Len() == 0
+		bc.addresses.Len() == 0 &&
+		bc.starknetIds.Len() == 0
 }
 
 func (bc *BlockContext) reset() {
 	bc.domains.Reset()
 	bc.transferredDomains.Reset()
-	bc.mintedStarknetIds.Reset()
-	bc.burnedStarknetIds.Reset()
-	bc.transferredStarknetIds.Reset()
+	bc.starknetIds.Reset()
 	bc.fields.Reset()
+	bc.addresses.Reset()
 }
 
-func (bc *BlockContext) addDomains(domains []data.Felt, address data.Felt) error {
+func (bc *BlockContext) findAddress(ctx context.Context, addresses storage.IAddress, hash []byte) (*storage.Address, error) {
+	addr, err := addresses.GetByHash(ctx, hash)
+	if err != nil {
+		if addresses.IsNoRows(err) {
+			key := hex.EncodeToString(hash)
+			address, ok := bc.addresses.Get(key)
+			if ok {
+				return address, nil
+			}
+		}
+		return nil, err
+	}
+	return &addr, nil
+}
+
+func (bc *BlockContext) addDomains(ctx context.Context, addresses storage.IAddress, domains []data.Felt, address data.Felt) error {
 	hash := address.Bytes()
+	addr, err := bc.findAddress(ctx, addresses, hash)
+	if err != nil {
+		return err
+	}
 	for i := range domains {
 		decoded, err := starknetid.Decode(domains[i])
 		if err != nil {
@@ -62,10 +81,12 @@ func (bc *BlockContext) addDomains(domains []data.Felt, address data.Felt) error
 		if item, ok := bc.domains.Get(decoded); ok {
 			item.Address = hash
 			item.Domain = decoded
+			item.AddressId = addr.Id
 		} else {
 			bc.domains.Set(decoded, &storage.Domain{
-				Address: hash,
-				Domain:  decoded,
+				Address:   hash,
+				AddressId: addr.Id,
+				Domain:    decoded,
 			})
 		}
 	}
@@ -96,42 +117,6 @@ func (bc *BlockContext) applyStaknetIdUpdate(update starknetid.StarknetIdUpdate)
 	return nil
 }
 
-func (bc *BlockContext) addMintedStarknetId(transfer starknetid.Transfer) error {
-	tokenId, err := transfer.TokenId.Decimal()
-	if err != nil {
-		return err
-	}
-	bc.mintedStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   tokenId,
-		OwnerAddress: transfer.To.Bytes(),
-	})
-	return nil
-}
-
-func (bc *BlockContext) addBurnedStarknetId(transfer starknetid.Transfer) error {
-	tokenId, err := transfer.TokenId.Decimal()
-	if err != nil {
-		return err
-	}
-	bc.burnedStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   tokenId,
-		OwnerAddress: transfer.From.Bytes(),
-	})
-	return nil
-}
-
-func (bc *BlockContext) addTransferedStarknetId(transfer starknetid.Transfer) error {
-	tokenId, err := transfer.TokenId.Decimal()
-	if err != nil {
-		return err
-	}
-	bc.transferredStarknetIds.Set(transfer.TokenId.String(), &storage.StarknetId{
-		StarknetId:   tokenId,
-		OwnerAddress: transfer.To.Bytes(),
-	})
-	return nil
-}
-
 func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) error {
 	for i := range update.Domain {
 		decoded, err := starknetid.Decode(update.Domain[i])
@@ -146,6 +131,77 @@ func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) er
 	return nil
 }
 
+func (bc *BlockContext) addMintedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
+	hash := transfer.To.Bytes()
+	addr, err := bc.findAddress(ctx, addresses, hash)
+	if err != nil {
+		return err
+	}
+
+	sid := &storage.StarknetId{
+		StarknetId:   tokenId,
+		OwnerAddress: hash,
+		OwnerId:      addr.Id,
+	}
+	bc.starknetIds.Set(transfer.TokenId.String(), NewTypeWithAction(sid, ActionInsert))
+	return nil
+}
+
+func (bc *BlockContext) addBurnedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
+	hash := transfer.From.Bytes()
+	addr, err := bc.findAddress(ctx, addresses, hash)
+	if err != nil {
+		return err
+	}
+
+	sid := &storage.StarknetId{
+		StarknetId:   tokenId,
+		OwnerAddress: hash,
+		OwnerId:      addr.Id,
+	}
+	if item, ok := bc.starknetIds.Get(transfer.TokenId.String()); ok {
+		if item.Action == ActionUpdate {
+			item.Action = ActionDelete
+		}
+	} else {
+		bc.starknetIds.Set(transfer.TokenId.String(), NewTypeWithAction(sid, ActionDelete))
+	}
+	return nil
+}
+
+func (bc *BlockContext) addTransferedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+	tokenId, err := transfer.TokenId.Decimal()
+	if err != nil {
+		return err
+	}
+	hash := transfer.To.Bytes()
+	addr, err := bc.findAddress(ctx, addresses, hash)
+	if err != nil {
+		return err
+	}
+
+	sid := &storage.StarknetId{
+		StarknetId:   tokenId,
+		OwnerAddress: hash,
+		OwnerId:      addr.Id,
+	}
+
+	if item, ok := bc.starknetIds.Get(transfer.TokenId.String()); ok {
+		item.Data = sid
+	} else {
+		bc.starknetIds.Set(transfer.TokenId.String(), NewTypeWithAction(sid, ActionUpdate))
+	}
+	return nil
+}
+
 func (bc *BlockContext) addField(update starknetid.VerifierDataUpdate) error {
 	starknetId := update.StarknetId.Decimal()
 	key := fmt.Sprintf("%s_%s_%d", starknetId.String(), update.Field.String(), storage.FieldNamespaceVerifier)
@@ -153,14 +209,24 @@ func (bc *BlockContext) addField(update starknetid.VerifierDataUpdate) error {
 		StarknetId: starknetId,
 		Namespace:  storage.FieldNamespaceVerifier,
 		Name:       update.Field.ToAsciiString(),
-		Value:      update.Data.Bytes(),
+		Value:      encoding.MustDecodeHex(update.Data.String()),
 	})
 	return nil
 }
 
-func (bc *BlockContext) updateState(name string, height, ts uint64) {
+func (bc *BlockContext) addAddress(address *pb.Address) {
+	key := hex.EncodeToString(address.GetHash())
+	bc.addresses.Set(key, &storage.Address{
+		Id:      address.GetId(),
+		Hash:    address.GetHash(),
+		Height:  address.GetHeight(),
+		ClassId: address.ClassId,
+	})
+}
+
+func (bc *BlockContext) updateState(name string, height uint64) {
 	bc.state.LastHeight = height
-	bc.state.LastTime = time.Unix(int64(ts), 0).UTC()
+	bc.state.LastTime = time.Now().UTC()
 	bc.state.Name = name
 }
 
