@@ -10,6 +10,7 @@ import (
 	"github.com/dipdup-io/starknet-indexer/pkg/grpc"
 	"github.com/dipdup-net/go-lib/config"
 	"github.com/dipdup-net/indexer-sdk/pkg/modules"
+	grpcSDK "github.com/dipdup-net/indexer-sdk/pkg/modules/grpc"
 	"github.com/dipdup-net/indexer-sdk/pkg/modules/printer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -77,10 +78,15 @@ func main() {
 		return
 	}
 
-	if err := client.Connect(ctx); err != nil {
+	log.Info().Msg("connecting to gRPC...")
+	if err := client.Connect(ctx,
+		grpcSDK.WaitServer(),
+		grpcSDK.WithUserAgent("starknet-id"),
+	); err != nil {
 		log.Panic().Err(err).Msg("grpc connect")
 		return
 	}
+	log.Info().Msg("connected")
 
 	client.Start(ctx)
 	indexer.Start(ctx)

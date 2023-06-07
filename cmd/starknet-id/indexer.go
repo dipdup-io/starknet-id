@@ -56,6 +56,8 @@ func (indexer *Indexer) Start(ctx context.Context) {
 		return
 	}
 
+	indexer.client.Start(ctx)
+
 	indexer.wg.Add(1)
 	go indexer.listen(ctx)
 }
@@ -147,6 +149,16 @@ func (indexer *Indexer) listen(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case msg, ok := <-indexer.client.Reconnect():
+			if !ok {
+				continue
+			}
+			channel, ok := indexer.channels[msg.OldId]
+			if !ok {
+				continue
+			}
+			delete(indexer.channels, msg.OldId)
+			indexer.channels[msg.NewId] = channel
 		case msg, ok := <-input.Listen():
 			if !ok {
 				continue

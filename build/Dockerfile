@@ -16,11 +16,11 @@ COPY ./go.* $GOPATH/src/github.com/dipdup-io/starknet-id/
 WORKDIR $GOPATH/src/github.com/dipdup-io/starknet-id
 RUN go mod download
 
-COPY cmd/indexer cmd/indexer
+COPY cmd/starknet-id cmd/starknet-id
 COPY internal internal
 
-WORKDIR $GOPATH/src/github.com/dipdup-io/starknet-id/cmd/indexer/
-RUN go build -a -o /go/bin/indexer .
+WORKDIR $GOPATH/src/github.com/dipdup-io/starknet-id/cmd/starknet-id/
+RUN go build -a -o /go/bin/starknet-id .
 
 # ---------------------------------------------------------------------
 #  The second stage container, for running the application
@@ -30,7 +30,7 @@ FROM scratch
 WORKDIR /app/starknet-id/
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /go/bin/indexer /go/bin/indexer
+COPY --from=builder /go/bin/starknet-id /go/bin/starknet-id
 COPY ./build/dipdup.yml ./
 
-ENTRYPOINT ["/go/bin/indexer", "-c", "dipdup.yml"]
+ENTRYPOINT ["/go/bin/starknet-id", "-c", "dipdup.yml"]

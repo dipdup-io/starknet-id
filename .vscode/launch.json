@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "program": "${workspaceFolder}/cmd/indexer",
+            "program": "${workspaceFolder}/cmd/starknet-id",
             "args": [
                 "-c",
                 "${workspaceFolder}/build/dipdup.yml"
