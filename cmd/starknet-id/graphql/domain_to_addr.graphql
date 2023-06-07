@@ -1,0 +1,9 @@
+query DomainToAddr($domain: String!) {
+  actual_domains(where: {domain: {_eq: $domain}}) {
+    domain
+    address
+    expiry
+    owner_address
+    starknet_id
+  }
+}

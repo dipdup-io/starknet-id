@@ -1,0 +1,9 @@
+query AddrToDomain($address: bytea!) {
+  actual_domains(where: {address: {_eq: $address}}) {
+    domain
+    address
+    expiry
+    owner_address
+    starknet_id
+  }
+}

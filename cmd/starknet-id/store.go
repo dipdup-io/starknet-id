@@ -72,6 +72,7 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	if err := s.saveFields(ctx, tx, blockCtx); err != nil {
 		return tx.HandleError(ctx, err)
 	}
+
 	if _, err := tx.Exec(ctx, `INSERT INTO state (name, last_height, last_time)
 		VALUES (?,?,?)
 		ON CONFLICT (name)

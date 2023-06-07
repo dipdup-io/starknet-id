@@ -6,9 +6,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dipdup-io/starknet-id/internal/storage"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
 	"github.com/dipdup-io/starknet-indexer/pkg/grpc"
 	"github.com/dipdup-net/go-lib/config"
+	"github.com/dipdup-net/go-lib/hasura"
 	"github.com/dipdup-net/indexer-sdk/pkg/modules"
 	grpcSDK "github.com/dipdup-net/indexer-sdk/pkg/modules/grpc"
 	"github.com/dipdup-net/indexer-sdk/pkg/modules/printer"
@@ -68,6 +70,28 @@ func main() {
 	if err != nil {
 		log.Panic().Err(err).Msg("database creation")
 		return
+	}
+	views, err := createViews(ctx, pg)
+	if err != nil {
+		log.Panic().Err(err).Msg("create views")
+		return
+	}
+
+	if cfg.Hasura != nil {
+		models := make([]any, len(storage.Models))
+		for i := range storage.Models {
+			models[i] = storage.Models[i]
+		}
+
+		if err := hasura.Create(ctx, hasura.GenerateArgs{
+			Config:         cfg.Hasura,
+			DatabaseConfig: cfg.Database,
+			Models:         models,
+			Views:          views,
+		}); err != nil {
+			log.Panic().Err(err).Msg("hasura initialization")
+			return
+		}
 	}
 
 	client := grpc.NewClient(*cfg.GRPC)
