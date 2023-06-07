@@ -79,14 +79,14 @@ func (bc *BlockContext) addDomains(ctx context.Context, addresses storage.IAddre
 			return err
 		}
 		if item, ok := bc.domains.Get(decoded); ok {
-			item.Address = hash
+			item.AddressHash = hash
 			item.Domain = decoded
 			item.AddressId = addr.Id
 		} else {
 			bc.domains.Set(decoded, &storage.Domain{
-				Address:   hash,
-				AddressId: addr.Id,
-				Domain:    decoded,
+				AddressHash: hash,
+				AddressId:   addr.Id,
+				Domain:      decoded,
 			})
 		}
 	}
@@ -206,10 +206,10 @@ func (bc *BlockContext) addField(update starknetid.VerifierDataUpdate) error {
 	starknetId := update.StarknetId.Decimal()
 	key := fmt.Sprintf("%s_%s_%d", starknetId.String(), update.Field.String(), storage.FieldNamespaceVerifier)
 	bc.fields.Set(key, &storage.Field{
-		StarknetId: starknetId,
-		Namespace:  storage.FieldNamespaceVerifier,
-		Name:       update.Field.ToAsciiString(),
-		Value:      encoding.MustDecodeHex(update.Data.String()),
+		OwnerId:   starknetId,
+		Namespace: storage.FieldNamespaceVerifier,
+		Name:      update.Field.ToAsciiString(),
+		Value:     encoding.MustDecodeHex(update.Data.String()),
 	})
 	return nil
 }

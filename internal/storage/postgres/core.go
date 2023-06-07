@@ -81,7 +81,7 @@ func createIndices(ctx context.Context, conn *database.PgGo) error {
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_name_idx ON domain USING hash(domain)`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_address_idx ON domain (address)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_address_idx ON domain (address_hash)`); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_address_id_idx ON domain (address_id)`); err != nil {
@@ -95,10 +95,10 @@ func createIndices(ctx context.Context, conn *database.PgGo) error {
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS field_name_idx ON field USING hash(name)`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS field_starknet_id_idx ON field (starknet_id)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS field_starknet_id_idx ON field (owner_id)`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS field_key_idx ON field (namespace,starknet_id,name)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS field_key_idx ON field (namespace,owner_id,name)`); err != nil {
 			return err
 		}
 
