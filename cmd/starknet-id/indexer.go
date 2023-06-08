@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/dipdup-io/starknet-go-api/pkg/data"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
@@ -31,6 +32,7 @@ type Indexer struct {
 	input          *modules.Input
 	channels       map[uint64]Channel
 	channelsByName map[string]Channel
+	subscriptions  map[string]grpc.Subscription
 
 	wg *sync.WaitGroup
 }
@@ -43,6 +45,7 @@ func NewIndexer(pg postgres.Storage, client *grpc.Client) *Indexer {
 		input:          modules.NewInput(InputName),
 		channels:       make(map[uint64]Channel),
 		channelsByName: make(map[string]Channel),
+		subscriptions:  make(map[string]grpc.Subscription),
 		wg:             new(sync.WaitGroup),
 	}
 
@@ -59,6 +62,9 @@ func (indexer *Indexer) Start(ctx context.Context) {
 	indexer.client.Start(ctx)
 
 	indexer.wg.Add(1)
+	go indexer.reconnectThread(ctx)
+
+	indexer.wg.Add(1)
 	go indexer.listen(ctx)
 }
 
@@ -69,6 +75,8 @@ func (indexer *Indexer) Name() string {
 
 // Subscribe -
 func (indexer *Indexer) Subscribe(ctx context.Context, subscriptions map[string]grpc.Subscription) error {
+	indexer.subscriptions = subscriptions
+
 	for name, sub := range subscriptions {
 		ch, ok := indexer.channelsByName[name]
 		if !ok {
@@ -77,27 +85,10 @@ func (indexer *Indexer) Subscribe(ctx context.Context, subscriptions map[string]
 
 		ch.Start(ctx)
 
-		if sub.EventFilter != nil {
-			for i := range sub.EventFilter {
-				sub.EventFilter[i].Height = &grpc.IntegerFilter{
-					Gt: ch.blockCtx.state.LastHeight,
-				}
-			}
+		if err := indexer.actualFilters(ctx, ch, &sub); err != nil {
+			return errors.Wrap(err, "filters modifying")
+		}
 
-		}
-		if sub.AddressFilter != nil {
-			lastId, err := indexer.storage.Addresses.LastID(ctx)
-			if err != nil {
-				if !indexer.storage.Addresses.IsNoRows(err) {
-					return err
-				}
-			}
-			for i := range sub.AddressFilter {
-				sub.AddressFilter[i].Id = &grpc.IntegerFilter{
-					Gt: lastId,
-				}
-			}
-		}
 		log.Info().Str("topic", name).Msg("subscribing...")
 		req := sub.ToGrpcFilter()
 		subId, err := indexer.client.Subscribe(ctx, req)
@@ -148,17 +139,9 @@ func (indexer *Indexer) listen(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			log.Info().Msg("close listen thread")
 			return
-		case msg, ok := <-indexer.client.Reconnect():
-			if !ok {
-				continue
-			}
-			channel, ok := indexer.channels[msg.OldId]
-			if !ok {
-				continue
-			}
-			delete(indexer.channels, msg.OldId)
-			indexer.channels[msg.NewId] = channel
+
 		case msg, ok := <-input.Listen():
 			if !ok {
 				continue
@@ -177,6 +160,89 @@ func (indexer *Indexer) listen(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (indexer *Indexer) reconnectThread(ctx context.Context) {
+	defer indexer.wg.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("close reconnect thread")
+			return
+		case subscriptionId, ok := <-indexer.client.Reconnect():
+			if !ok {
+				continue
+			}
+
+			if err := indexer.resubscribe(ctx, subscriptionId); err != nil {
+				log.Err(err).Msg("resubscribe")
+			}
+		}
+	}
+}
+
+func (indexer *Indexer) resubscribe(ctx context.Context, id uint64) error {
+	channel, ok := indexer.channels[id]
+	if !ok {
+		return errors.Errorf("unknown subscription: %d", id)
+	}
+
+	for !channel.IsEmpty() {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			time.Sleep(time.Second)
+		}
+	}
+
+	delete(indexer.channels, id)
+
+	sub, ok := indexer.subscriptions[channel.Name()]
+	if !ok {
+		return errors.Errorf("unknown subscription request: %d", id)
+	}
+
+	if err := indexer.actualFilters(ctx, channel, &sub); err != nil {
+		return errors.Wrap(err, "filters modifying")
+	}
+
+	log.Info().Str("topic", channel.Name()).Msg("resubscribing...")
+	req := sub.ToGrpcFilter()
+	subId, err := indexer.client.Subscribe(ctx, req)
+	if err != nil {
+		return errors.Wrap(err, "resubscribing error")
+	}
+	indexer.channels[subId] = channel
+
+	return nil
+}
+
+func (indexer *Indexer) actualFilters(ctx context.Context, ch Channel, sub *grpc.Subscription) error {
+	if sub.EventFilter != nil {
+		for i := range sub.EventFilter {
+			sub.EventFilter[i].Height = &grpc.IntegerFilter{
+				Gt: ch.blockCtx.state.LastHeight,
+			}
+		}
+
+	}
+	if sub.AddressFilter != nil {
+		lastId, err := indexer.storage.Addresses.LastID(ctx)
+		if err != nil {
+			if !indexer.storage.Addresses.IsNoRows(err) {
+				return errors.Wrap(err, "get last address id")
+			}
+		}
+		for i := range sub.AddressFilter {
+			sub.AddressFilter[i].Id = &grpc.IntegerFilter{
+				Gt: lastId,
+			}
+		}
+	}
+
+	return nil
 }
 
 // Output - returns output by name

@@ -65,6 +65,11 @@ func (channel Channel) Start(ctx context.Context) {
 	go channel.listen(ctx)
 }
 
+// IsEmpty -
+func (channel Channel) IsEmpty() bool {
+	return len(channel.ch) == 0
+}
+
 func (channel Channel) listen(ctx context.Context) {
 	defer channel.wg.Done()
 

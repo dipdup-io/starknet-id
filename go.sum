@@ -16,8 +16,8 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 h1:HbphB4TFFXpv7MNrT52FGrrgVXF1
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0/go.mod h1:DZGJHZMqrU4JJqFAWUS2UO1+lbSKsdiOoYi9Zzey7Fc=
 github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047 h1:D8AqGagMfAGv6GAYiTr6+tca+xPwgRnhQtIM31sNkRI=
 github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047/go.mod h1:Dh1ZUXPbmjiIsfTYeYl3BzK8HuvQOTyrg2CcpQiSOD8=
-github.com/dipdup-io/starknet-indexer v0.0.0-20230607120626-e3e2bfd91ba9 h1:HeBPp+siok3Rq7l4nvlanaxxnNYqTovKJA5nz28aXxY=
-github.com/dipdup-io/starknet-indexer v0.0.0-20230607120626-e3e2bfd91ba9/go.mod h1:v3CYWLgA5NFuQ5O+ntw/vrG6LAG4XgtX1h1DDIvom2Q=
+github.com/dipdup-io/starknet-indexer v0.0.0-20230608111641-c52d65847045 h1:6d0fjNAaJpS1d5OYT7tHDLy3+9077eKMgzGUXpYgOE4=
+github.com/dipdup-io/starknet-indexer v0.0.0-20230608111641-c52d65847045/go.mod h1:v3CYWLgA5NFuQ5O+ntw/vrG6LAG4XgtX1h1DDIvom2Q=
 github.com/dipdup-net/go-lib v0.2.34 h1:ug5Fm+LoX6HcMrbt8jxiJZ8d+ydhaVn/hrqaBsre6os=
 github.com/dipdup-net/go-lib v0.2.34/go.mod h1:oXILRskGR7bXvuFyc6B8prCKOjGJdDc76kMcf65EvcE=
 github.com/dipdup-net/indexer-sdk v0.0.0-20230607120505-500072a4250b h1:wWF1QkJ9kowXnsiT/Roj/+mnzuax1r5QQtICzkKcRxI=
