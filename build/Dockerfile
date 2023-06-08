@@ -31,6 +31,8 @@ WORKDIR /app/starknet-id/
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go/bin/starknet-id /go/bin/starknet-id
+COPY ./cmd/indexer/graphql ./graphql
+COPY ./cmd/indexer/views ./views
 COPY ./build/dipdup.yml ./
 
 ENTRYPOINT ["/go/bin/starknet-id", "-c", "dipdup.yml"]
