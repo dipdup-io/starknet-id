@@ -8,5 +8,6 @@ var Models = []storage.Model{
 	&Address{},
 	&StarknetId{},
 	&Domain{},
+	&Subdomain{},
 	&Field{},
 }

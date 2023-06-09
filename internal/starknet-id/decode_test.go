@@ -25,6 +25,10 @@ func TestDecode(t *testing.T) {
 			name: "coinify",
 			f:    data.Felt("0x10EBD49A0E"),
 			want: "coinify",
+		}, {
+			name: "xplorer",
+			f:    data.Felt("0xbfff81efd"),
+			want: "xplorer",
 		},
 	}
 	for _, tt := range tests {

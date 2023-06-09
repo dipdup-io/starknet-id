@@ -12,3 +12,6 @@ lint:
 
 test:
 	go test ./...
+
+tester:
+	cd cmd/tester && go run . 

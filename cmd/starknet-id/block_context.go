@@ -12,26 +12,35 @@ import (
 	starknetid "github.com/dipdup-io/starknet-id/internal/starknet-id"
 	"github.com/dipdup-io/starknet-id/internal/storage"
 	"github.com/dipdup-io/starknet-indexer/pkg/grpc/pb"
+	"github.com/pkg/errors"
 )
 
 // BlockContext -
 type BlockContext struct {
+	cache *Cache
+
 	domains            *syncMap[string, *storage.Domain]
 	transferredDomains *syncMap[string, *storage.Domain]
 	starknetIds        *syncMap[string, *TypeWithAction[*storage.StarknetId]]
 	fields             *syncMap[string, *storage.Field]
 	addresses          *syncMap[string, *storage.Address]
+	subdomains         *syncMap[string, *storage.Subdomain]
+
+	addressRepo storage.IAddress
 
 	state *storage.State
 }
 
-func newBlockContext() *BlockContext {
+func newBlockContext(subdomainRepo storage.ISubdomain, addressRepo storage.IAddress) *BlockContext {
 	return &BlockContext{
+		cache:              NewCache(subdomainRepo),
 		domains:            newSyncMap[string, *storage.Domain](),
 		transferredDomains: newSyncMap[string, *storage.Domain](),
 		starknetIds:        newSyncMap[string, *TypeWithAction[*storage.StarknetId]](),
 		fields:             newSyncMap[string, *storage.Field](),
 		addresses:          newSyncMap[string, *storage.Address](),
+		subdomains:         newSyncMap[string, *storage.Subdomain](),
+		addressRepo:        addressRepo,
 		state:              new(storage.State),
 	}
 }
@@ -41,7 +50,8 @@ func (bc *BlockContext) isEmpty() bool {
 		bc.fields.Len() == 0 &&
 		bc.transferredDomains.Len() == 0 &&
 		bc.addresses.Len() == 0 &&
-		bc.starknetIds.Len() == 0
+		bc.starknetIds.Len() == 0 &&
+		bc.subdomains.Len() == 0
 }
 
 func (bc *BlockContext) reset() {
@@ -50,12 +60,13 @@ func (bc *BlockContext) reset() {
 	bc.starknetIds.Reset()
 	bc.fields.Reset()
 	bc.addresses.Reset()
+	bc.subdomains.Reset()
 }
 
-func (bc *BlockContext) findAddress(ctx context.Context, addresses storage.IAddress, hash []byte) (*storage.Address, error) {
-	addr, err := addresses.GetByHash(ctx, hash)
+func (bc *BlockContext) findAddress(ctx context.Context, hash []byte) (*storage.Address, error) {
+	addr, err := bc.addressRepo.GetByHash(ctx, hash)
 	if err != nil {
-		if addresses.IsNoRows(err) {
+		if bc.addressRepo.IsNoRows(err) {
 			key := hex.EncodeToString(hash)
 			address, ok := bc.addresses.Get(key)
 			if ok {
@@ -67,14 +78,27 @@ func (bc *BlockContext) findAddress(ctx context.Context, addresses storage.IAddr
 	return &addr, nil
 }
 
-func (bc *BlockContext) addDomains(ctx context.Context, addresses storage.IAddress, domains []data.Felt, address data.Felt) error {
+func (bc *BlockContext) getFullDomainName(ctx context.Context, domain string, resolverId uint64) (string, error) {
+	subdomain, err := bc.cache.GetSubdomain(ctx, resolverId)
+	if err != nil {
+		return "", errors.Wrap(err, "get subdomain")
+	}
+
+	return domain + "." + subdomain, nil
+}
+
+func (bc *BlockContext) addDomains(ctx context.Context, domains []data.Felt, address data.Felt, contract uint64) error {
 	hash := address.Bytes()
-	addr, err := bc.findAddress(ctx, addresses, hash)
+	addr, err := bc.findAddress(ctx, hash)
 	if err != nil {
 		return err
 	}
 	for i := range domains {
 		decoded, err := starknetid.Decode(domains[i])
+		if err != nil {
+			return err
+		}
+		decoded, err = bc.getFullDomainName(ctx, decoded, contract)
 		if err != nil {
 			return err
 		}
@@ -99,6 +123,7 @@ func (bc *BlockContext) applyStaknetIdUpdate(update starknetid.StarknetIdUpdate)
 		if err != nil {
 			return err
 		}
+		decoded = decoded + "." + rootDomain
 		expiry, err := update.Expiry.Uint64()
 		if err != nil {
 			return err
@@ -123,6 +148,7 @@ func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) er
 		if err != nil {
 			return err
 		}
+		decoded = decoded + "." + rootDomain
 		bc.transferredDomains.Set(decoded, &storage.Domain{
 			Domain: decoded,
 			Owner:  update.NewOwner.Decimal(),
@@ -131,13 +157,35 @@ func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) er
 	return nil
 }
 
-func (bc *BlockContext) addMintedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+func (bc *BlockContext) addSubdomain(ctx context.Context, event *pb.Event, update starknetid.DomainToResolverUpdate) error {
+	for i := range update.Domain {
+		decoded, err := starknetid.Decode(update.Domain[i])
+		if err != nil {
+			return err
+		}
+		hash := update.Resolver.Bytes()
+		addr, err := bc.findAddress(ctx, hash)
+		if err != nil {
+			return err
+		}
+		bc.cache.SetSubdomain(addr.Id, decoded)
+		bc.subdomains.Set(decoded, &storage.Subdomain{
+			RegistrationHeight: event.Height,
+			RegistrationDate:   time.Unix(int64(event.Time), 0),
+			ResolverId:         addr.Id,
+			Subdomain:          decoded,
+		})
+	}
+	return nil
+}
+
+func (bc *BlockContext) addMintedStarknetId(ctx context.Context, transfer starknetid.Transfer) error {
 	tokenId, err := transfer.TokenId.Decimal()
 	if err != nil {
 		return err
 	}
 	hash := transfer.To.Bytes()
-	addr, err := bc.findAddress(ctx, addresses, hash)
+	addr, err := bc.findAddress(ctx, hash)
 	if err != nil {
 		return err
 	}
@@ -151,13 +199,13 @@ func (bc *BlockContext) addMintedStarknetId(ctx context.Context, addresses stora
 	return nil
 }
 
-func (bc *BlockContext) addBurnedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+func (bc *BlockContext) addBurnedStarknetId(ctx context.Context, transfer starknetid.Transfer) error {
 	tokenId, err := transfer.TokenId.Decimal()
 	if err != nil {
 		return err
 	}
 	hash := transfer.From.Bytes()
-	addr, err := bc.findAddress(ctx, addresses, hash)
+	addr, err := bc.findAddress(ctx, hash)
 	if err != nil {
 		return err
 	}
@@ -177,13 +225,13 @@ func (bc *BlockContext) addBurnedStarknetId(ctx context.Context, addresses stora
 	return nil
 }
 
-func (bc *BlockContext) addTransferedStarknetId(ctx context.Context, addresses storage.IAddress, transfer starknetid.Transfer) error {
+func (bc *BlockContext) addTransferedStarknetId(ctx context.Context, transfer starknetid.Transfer) error {
 	tokenId, err := transfer.TokenId.Decimal()
 	if err != nil {
 		return err
 	}
 	hash := transfer.To.Bytes()
-	addr, err := bc.findAddress(ctx, addresses, hash)
+	addr, err := bc.findAddress(ctx, hash)
 	if err != nil {
 		return err
 	}

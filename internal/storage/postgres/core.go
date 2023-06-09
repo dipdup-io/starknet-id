@@ -18,6 +18,7 @@ type Storage struct {
 
 	Addresses   models.IAddress
 	Domains     models.IDomain
+	Subdomains  models.ISubdomain
 	StarknetIds models.IStarknetId
 	Fields      models.IField
 	State       models.IState
@@ -36,6 +37,7 @@ func Create(ctx context.Context, cfg config.Database) (Storage, error) {
 		Addresses:   NewAddress(strg.Connection()),
 		StarknetIds: NewStarknetId(strg.Connection()),
 		Domains:     NewDomain(strg.Connection()),
+		Subdomains:  NewSubdomain(strg.Connection()),
 		Fields:      NewField(strg.Connection()),
 	}
 
@@ -88,6 +90,14 @@ func createIndices(ctx context.Context, conn *database.PgGo) error {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS domain_owner_idx ON domain (owner)`); err != nil {
+			return err
+		}
+
+		// Subdomain
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS subdomain_name_idx ON subdomain USING hash(subdomain)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS subdomain_resolver_id_idx ON subdomain (resolver_id)`); err != nil {
 			return err
 		}
 

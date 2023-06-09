@@ -19,6 +19,7 @@ func makeComments(ctx context.Context, conn *database.PgGo) error {
 		storage.Address{},
 		storage.StarknetId{},
 		storage.Domain{},
+		storage.Subdomain{},
 		storage.Field{},
 	} {
 		typ := reflect.TypeOf(model)

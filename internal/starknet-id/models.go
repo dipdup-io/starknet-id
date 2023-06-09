@@ -11,14 +11,15 @@ const (
 
 // event names
 const (
-	EventTransfer              = "Transfer"
-	EventVerifierDataUpdate    = "VerifierDataUpdate"
-	EventOnInftEquipped        = "on_inft_equipped"
-	EventDomainToAddrUpdate    = "domain_to_addr_update"
-	EventAddrToDomainUpdate    = "addr_to_domain_update"
-	EventStarknetIdUpdate      = "starknet_id_update"
-	EventDomainTransfer        = "domain_transfer"
-	EventResetSubdomainsUpdate = "reset_subdomains_update"
+	EventTransfer               = "Transfer"
+	EventVerifierDataUpdate     = "VerifierDataUpdate"
+	EventOnInftEquipped         = "on_inft_equipped"
+	EventDomainToAddrUpdate     = "domain_to_addr_update"
+	EventAddrToDomainUpdate     = "addr_to_domain_update"
+	EventStarknetIdUpdate       = "starknet_id_update"
+	EventDomainTransfer         = "domain_transfer"
+	EventResetSubdomainsUpdate  = "reset_subdomains_update"
+	EventDomainToResolverUpdate = "domain_to_resolver_update"
 )
 
 // Transfer -
@@ -77,4 +78,11 @@ type DomainTransfer struct {
 type ResetSubdomainsUpdate struct {
 	DomainLen data.Felt   `json:"domain_len"`
 	Domain    []data.Felt `json:"domain"`
+}
+
+// DomainToResolverUpdate -
+type DomainToResolverUpdate struct {
+	Domain    []data.Felt `json:"domain"`
+	Resolver  data.Felt   `json:"resolver"`
+	DomainLen data.Felt   `json:"domain_len"`
 }

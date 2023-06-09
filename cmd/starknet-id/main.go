@@ -21,8 +21,8 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "indexer",
-		Short: "DipDup indexer",
+		Use:   "starknet-id",
+		Short: "DipDup indexer for Starknet ID service",
 	}
 )
 

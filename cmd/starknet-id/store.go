@@ -62,8 +62,10 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	if err := s.saveAddresses(ctx, tx, blockCtx); err != nil {
 		return tx.HandleError(ctx, err)
 	}
-
 	if err := s.saveStarknetId(ctx, tx, blockCtx); err != nil {
+		return tx.HandleError(ctx, err)
+	}
+	if err := s.saveSubdomains(ctx, tx, blockCtx); err != nil {
 		return tx.HandleError(ctx, err)
 	}
 	if err := s.addDomains(ctx, tx, blockCtx); err != nil {
@@ -190,6 +192,25 @@ func (s Store) saveFields(ctx context.Context, tx sdk.Transaction, blockCtx *Blo
 		return false, err
 	}); err != nil {
 		return errors.Wrap(err, "saving field")
+	}
+	return nil
+}
+
+func (s Store) saveSubdomains(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
+	if blockCtx.subdomains.Len() == 0 {
+		return nil
+	}
+	if err := blockCtx.subdomains.Range(func(k string, v *storage.Subdomain) (bool, error) {
+		_, err := tx.Exec(ctx, `INSERT INTO subdomain (registration_height, registration_date, resolver_id, subdomain)
+			VALUES (?,?,?,?)
+			ON CONFLICT (subdomain)
+			DO 
+			UPDATE SET registration_height = excluded.registration_height, registration_date = excluded.registration_date, resolver_id = excluded.resolver_id`,
+			v.RegistrationHeight, v.RegistrationDate, v.ResolverId, v.Subdomain,
+		)
+		return false, err
+	}); err != nil {
+		return errors.Wrap(err, "saving subdomains")
 	}
 	return nil
 }
