@@ -6,4 +6,4 @@ graphql:
   requests_per_seconds: 3
 
 log_level: info
-start: 150000
+start: 0

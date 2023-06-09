@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,19 +73,40 @@ func (bc *BlockContext) findAddress(ctx context.Context, hash []byte) (*storage.
 			if ok {
 				return address, nil
 			}
+			return &storage.Address{
+				Hash: hash,
+			}, nil
 		}
 		return nil, err
 	}
 	return &addr, nil
 }
 
-func (bc *BlockContext) getFullDomainName(ctx context.Context, domain string, resolverId uint64) (string, error) {
+func (bc *BlockContext) getFullDomainName(ctx context.Context, domains []data.Felt, resolverId uint64) (string, error) {
+	parts, err := bc.decodeDomainName(domains)
+	if err != nil {
+		return "", err
+	}
 	subdomain, err := bc.cache.GetSubdomain(ctx, resolverId)
 	if err != nil {
 		return "", errors.Wrap(err, "get subdomain")
 	}
 
-	return domain + "." + subdomain, nil
+	parts = append(parts, subdomain)
+
+	return strings.Join(parts, "."), nil
+}
+
+func (bc *BlockContext) decodeDomainName(domains []data.Felt) ([]string, error) {
+	parts := make([]string, len(domains))
+	for i := range domains {
+		decoded, err := starknetid.Decode(domains[i])
+		if err != nil {
+			return nil, err
+		}
+		parts[i] = decoded
+	}
+	return parts, nil
 }
 
 func (bc *BlockContext) addDomains(ctx context.Context, domains []data.Felt, address data.Felt, contract uint64) error {
@@ -93,89 +115,84 @@ func (bc *BlockContext) addDomains(ctx context.Context, domains []data.Felt, add
 	if err != nil {
 		return err
 	}
-	for i := range domains {
-		decoded, err := starknetid.Decode(domains[i])
-		if err != nil {
-			return err
-		}
-		decoded, err = bc.getFullDomainName(ctx, decoded, contract)
-		if err != nil {
-			return err
-		}
-		if item, ok := bc.domains.Get(decoded); ok {
-			item.AddressHash = hash
-			item.Domain = decoded
-			item.AddressId = addr.Id
-		} else {
-			bc.domains.Set(decoded, &storage.Domain{
-				AddressHash: hash,
-				AddressId:   addr.Id,
-				Domain:      decoded,
-			})
-		}
+
+	domain, err := bc.getFullDomainName(ctx, domains, contract)
+	if err != nil {
+		return err
 	}
+	if item, ok := bc.domains.Get(domain); ok {
+		item.AddressHash = hash
+		item.Domain = domain
+		item.AddressId = addr.Id
+	} else {
+		bc.domains.Set(domain, &storage.Domain{
+			AddressHash: hash,
+			AddressId:   addr.Id,
+			Domain:      domain,
+		})
+	}
+
 	return nil
 }
 
 func (bc *BlockContext) applyStaknetIdUpdate(update starknetid.StarknetIdUpdate) error {
-	for i := range update.Domain {
-		decoded, err := starknetid.Decode(update.Domain[i])
-		if err != nil {
-			return err
-		}
-		decoded = decoded + "." + rootDomain
-		expiry, err := update.Expiry.Uint64()
-		if err != nil {
-			return err
-		}
-		if item, ok := bc.domains.Get(decoded); ok {
-			item.Expiry = time.Unix(int64(expiry), 0).UTC()
-			item.Owner = update.Owner.Decimal()
-		} else {
-			bc.domains.Set(decoded, &storage.Domain{
-				Expiry: time.Unix(int64(expiry), 0).UTC(),
-				Owner:  update.Owner.Decimal(),
-				Domain: decoded,
-			})
-		}
+	parts, err := bc.decodeDomainName(update.Domain)
+	if err != nil {
+		return err
+	}
+	parts = append(parts, rootDomain)
+	domain := strings.Join(parts, ".")
+
+	expiry, err := update.Expiry.Uint64()
+	if err != nil {
+		return err
+	}
+
+	if item, ok := bc.domains.Get(domain); ok {
+		item.Expiry = time.Unix(int64(expiry), 0).UTC()
+		item.Owner = update.Owner.Decimal()
+	} else {
+		bc.domains.Set(domain, &storage.Domain{
+			Expiry: time.Unix(int64(expiry), 0).UTC(),
+			Owner:  update.Owner.Decimal(),
+			Domain: domain,
+		})
 	}
 	return nil
 }
 
 func (bc *BlockContext) applyDomainTransfer(update starknetid.DomainTransfer) error {
-	for i := range update.Domain {
-		decoded, err := starknetid.Decode(update.Domain[i])
-		if err != nil {
-			return err
-		}
-		decoded = decoded + "." + rootDomain
-		bc.transferredDomains.Set(decoded, &storage.Domain{
-			Domain: decoded,
-			Owner:  update.NewOwner.Decimal(),
-		})
+	parts, err := bc.decodeDomainName(update.Domain)
+	if err != nil {
+		return err
 	}
+	parts = append(parts, rootDomain)
+	domain := strings.Join(parts, ".")
+	bc.transferredDomains.Set(domain, &storage.Domain{
+		Domain: domain,
+		Owner:  update.NewOwner.Decimal(),
+	})
 	return nil
 }
 
 func (bc *BlockContext) addSubdomain(ctx context.Context, event *pb.Event, update starknetid.DomainToResolverUpdate) error {
-	for i := range update.Domain {
-		decoded, err := starknetid.Decode(update.Domain[i])
-		if err != nil {
-			return err
-		}
-		hash := update.Resolver.Bytes()
-		addr, err := bc.findAddress(ctx, hash)
-		if err != nil {
-			return err
-		}
-		bc.cache.SetSubdomain(addr.Id, decoded)
-		bc.subdomains.Set(decoded, &storage.Subdomain{
-			RegistrationHeight: event.Height,
-			RegistrationDate:   time.Unix(int64(event.Time), 0),
-			ResolverId:         addr.Id,
-			Subdomain:          decoded,
-		})
+	parts, err := bc.decodeDomainName(update.Domain)
+	if err != nil {
+		return err
 	}
+	domain := strings.Join(parts, ".")
+	hash := update.Resolver.Bytes()
+	addr, err := bc.findAddress(ctx, hash)
+	if err != nil {
+		return err
+	}
+	bc.cache.SetSubdomain(addr.Id, domain)
+	bc.subdomains.Set(domain, &storage.Subdomain{
+		RegistrationHeight: event.Height,
+		RegistrationDate:   time.Unix(int64(event.Time), 0),
+		ResolverId:         addr.Id,
+		Subdomain:          domain,
+	})
 	return nil
 }
 
