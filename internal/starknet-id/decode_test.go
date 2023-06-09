@@ -29,6 +29,10 @@ func TestDecode(t *testing.T) {
 			name: "xplorer",
 			f:    data.Felt("0xbfff81efd"),
 			want: "xplorer",
+		}, {
+			name: "adalia",
+			f:    data.Felt("0xafc5f49a"),
+			want: "adalia",
 		},
 	}
 	for _, tt := range tests {
