@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -104,7 +103,7 @@ func (api Api) DomainToAddress(ctx context.Context, domain string) (resp DomainT
 	if err != nil {
 		return resp, err
 	}
-	url = fmt.Sprintf("%s?domain=%s", url, strings.ToValidUTF8(domain, ""))
+	url = fmt.Sprintf("%s?domain=%s", url, domain)
 	err = api.get(ctx, url, &resp)
 	return
 }
@@ -115,7 +114,7 @@ func (api Api) AddressToDomain(ctx context.Context, address string) (resp AddrTo
 	if err != nil {
 		return resp, err
 	}
-	url = fmt.Sprintf("%s?addr=%s", url, strings.ToValidUTF8(address, ""))
+	url = fmt.Sprintf("%s?addr=%s", url, address)
 	err = api.get(ctx, url, &resp)
 	return
 }

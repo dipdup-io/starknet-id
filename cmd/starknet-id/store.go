@@ -154,13 +154,25 @@ func (s Store) saveStarknetId(ctx context.Context, tx sdk.Transaction, blockCtx 
 func (s Store) addDomains(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
 	if blockCtx.domains.Len() > 0 {
 		if err := blockCtx.domains.Range(func(k string, v *storage.Domain) (bool, error) {
-			_, err := tx.Exec(ctx, `INSERT INTO domain (address_id, address_hash, domain, owner, expiry)
-			VALUES (?,?,?,?,?)
-			ON CONFLICT (domain)
-			DO 
-			UPDATE SET address_id = excluded.address_id, address_hash = excluded.address_hash, owner = excluded.owner, expiry = excluded.expiry`,
-				v.AddressId, v.AddressHash, v.Domain, v.Owner.String(), v.Expiry,
-			)
+			var err error
+			if v.Expiry.IsZero() {
+				_, err = tx.Exec(ctx, `INSERT INTO domain (address_id, address_hash, domain, owner, expiry)
+				VALUES (?,?,?,?,?)
+				ON CONFLICT (domain)
+				DO 
+				UPDATE SET address_id = excluded.address_id, address_hash = excluded.address_hash`,
+					v.AddressId, v.AddressHash, v.Domain, v.Owner.String(), v.Expiry,
+				)
+			} else {
+				_, err = tx.Exec(ctx, `INSERT INTO domain (address_id, address_hash, domain, owner, expiry)
+				VALUES (?,?,?,?,?)
+				ON CONFLICT (domain)
+				DO 
+				UPDATE SET address_id = excluded.address_id, address_hash = excluded.address_hash, owner = excluded.owner, expiry = excluded.expiry`,
+					v.AddressId, v.AddressHash, v.Domain, v.Owner.String(), v.Expiry,
+				)
+			}
+
 			return false, err
 		}); err != nil {
 			return errors.Wrap(err, "saving domain")
