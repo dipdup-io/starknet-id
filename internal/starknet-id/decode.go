@@ -1,7 +1,6 @@
 package starknetid
 
 import (
-	"log"
 	"strings"
 
 	"github.com/dipdup-io/starknet-go-api/pkg/data"
@@ -31,8 +30,6 @@ func Decode(f data.Felt) (string, error) {
 		basicL   = basicLen.Add(one)
 		bigL     = bigLen.Add(one)
 	)
-
-	log.Print(len(bigAlphabet))
 
 	for num.IsPositive() {
 		var char byte
