@@ -27,12 +27,17 @@ type BlockContext struct {
 	addresses          *syncMap[string, *storage.Address]
 	subdomains         *syncMap[string, *storage.Subdomain]
 
-	addressRepo storage.IAddress
+	addressRepo   storage.IAddress
+	subdomainsMap map[string]string
 
 	state *storage.State
 }
 
-func newBlockContext(subdomainRepo storage.ISubdomain, addressRepo storage.IAddress) *BlockContext {
+func newBlockContext(
+	subdomainRepo storage.ISubdomain,
+	addressRepo storage.IAddress,
+	subdomainsMap map[string]string,
+) *BlockContext {
 	return &BlockContext{
 		cache:              NewCache(subdomainRepo),
 		domains:            newSyncMap[string, *storage.Domain](),
@@ -42,6 +47,7 @@ func newBlockContext(subdomainRepo storage.ISubdomain, addressRepo storage.IAddr
 		addresses:          newSyncMap[string, *storage.Address](),
 		subdomains:         newSyncMap[string, *storage.Subdomain](),
 		addressRepo:        addressRepo,
+		subdomainsMap:      subdomainsMap,
 		state:              new(storage.State),
 	}
 }
@@ -82,17 +88,28 @@ func (bc *BlockContext) findAddress(ctx context.Context, hash []byte) (*storage.
 	return &addr, nil
 }
 
-func (bc *BlockContext) getFullDomainName(ctx context.Context, domains []data.Felt, resolverId uint64) (string, error) {
+func (bc *BlockContext) getFullDomainName(ctx context.Context, domains []data.Felt, contract storage.Address) (string, error) {
 	parts, err := bc.decodeDomainName(domains)
 	if err != nil {
 		return "", err
 	}
-	subdomain, err := bc.cache.GetSubdomain(ctx, resolverId)
-	if err != nil {
-		return "", errors.Wrap(err, "get subdomain")
+	var (
+		subdomain string
+		ok        bool
+	)
+
+	if subdomain, ok = bc.subdomainsMap[hex.EncodeToString(contract.Hash)]; !ok {
+		subdomain, err = bc.cache.GetSubdomain(ctx, contract.Id)
+		if err != nil {
+			return "", errors.Wrap(err, "get subdomain")
+		}
 	}
 
 	parts = append(parts, subdomain)
+
+	if ok {
+		parts = append(parts, rootDomain)
+	}
 
 	return strings.Join(parts, "."), nil
 }
@@ -109,7 +126,7 @@ func (bc *BlockContext) decodeDomainName(domains []data.Felt) ([]string, error) 
 	return parts, nil
 }
 
-func (bc *BlockContext) addDomains(ctx context.Context, domains []data.Felt, address data.Felt, contract uint64) error {
+func (bc *BlockContext) addDomains(ctx context.Context, domains []data.Felt, address data.Felt, contract storage.Address) error {
 	hash := address.Bytes()
 	addr, err := bc.findAddress(ctx, hash)
 	if err != nil {

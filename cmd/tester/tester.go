@@ -121,7 +121,7 @@ func (t *Tester) work(ctx context.Context, part testPart) {
 		}
 
 		if !gqAddr.Equal(siAddr) {
-			log.Error().Str("starknet_id", siAddr.String()).Str("graphql", gqAddr.String()).Msg("unequal")
+			log.Error().Str("domain", domains[i].Domain).Str("starknet_id", siAddr.String()).Str("graphql", gqAddr.String()).Msg("unequal")
 			failed += 1
 		}
 

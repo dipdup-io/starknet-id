@@ -9,8 +9,9 @@ import (
 type Config struct {
 	config.Config `yaml:",inline"`
 
-	LogLevel string             `yaml:"log_level" validate:"omitempty,oneof=debug trace info warn error fatal panic"`
-	GRPC     *grpc.ClientConfig `yaml:"grpc" validate:"required"`
+	LogLevel   string             `yaml:"log_level" validate:"omitempty,oneof=debug trace info warn error fatal panic"`
+	GRPC       *grpc.ClientConfig `yaml:"grpc" validate:"required"`
+	Subdomains map[string]string  `yaml:"subdomains" validate:"required"`
 }
 
 // Substitute -

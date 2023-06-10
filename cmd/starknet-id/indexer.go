@@ -33,12 +33,13 @@ type Indexer struct {
 	channels       map[uint64]Channel
 	channelsByName map[string]Channel
 	subscriptions  map[string]grpc.Subscription
+	subdomains     map[string]string
 
 	wg *sync.WaitGroup
 }
 
 // NewIndexer -
-func NewIndexer(pg postgres.Storage, client *grpc.Client) *Indexer {
+func NewIndexer(pg postgres.Storage, client *grpc.Client, subdomains map[string]string) *Indexer {
 	indexer := &Indexer{
 		client:         client,
 		storage:        pg,
@@ -46,6 +47,7 @@ func NewIndexer(pg postgres.Storage, client *grpc.Client) *Indexer {
 		channels:       make(map[uint64]Channel),
 		channelsByName: make(map[string]Channel),
 		subscriptions:  make(map[string]grpc.Subscription),
+		subdomains:     subdomains,
 		wg:             new(sync.WaitGroup),
 	}
 
@@ -80,7 +82,7 @@ func (indexer *Indexer) Subscribe(ctx context.Context, subscriptions map[string]
 	for name, sub := range subscriptions {
 		ch, ok := indexer.channelsByName[name]
 		if !ok {
-			ch = NewChannel(name, indexer.storage)
+			ch = NewChannel(name, indexer.storage, indexer.subdomains)
 		}
 
 		ch.Start(ctx)
@@ -105,7 +107,7 @@ func (indexer *Indexer) init(ctx context.Context) error {
 	switch {
 	case err == nil:
 		for i := range states {
-			ch := NewChannel(states[i].Name, indexer.storage)
+			ch := NewChannel(states[i].Name, indexer.storage, indexer.subdomains)
 			ch.blockCtx.state = states[i]
 			indexer.channelsByName[states[i].Name] = ch
 		}

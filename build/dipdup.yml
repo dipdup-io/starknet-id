@@ -2,6 +2,10 @@ version: 0.0.1
 
 log_level: ${LOG_LEVEL:-info}
 
+subdomains:
+  03448896d4a0df143f98c9eeccc7e279bf3c2008bda2ad2759f5b20ed263585f: braavos
+  04942ebdc9fc996a42adb4a825e9070737fe68cef32a64a616ba5528d457812e: xplorer
+
 grpc:
   server_address: ${GRPC_BIND:-127.0.0.1:7779}
   subscriptions:

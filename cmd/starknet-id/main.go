@@ -95,7 +95,7 @@ func main() {
 	}
 
 	client := grpc.NewClient(*cfg.GRPC)
-	indexer := NewIndexer(pg, client)
+	indexer := NewIndexer(pg, client, cfg.Subdomains)
 
 	if err := modules.Connect(client, indexer, grpc.OutputMessages, printer.InputName); err != nil {
 		log.Panic().Err(err).Msg("module connect")

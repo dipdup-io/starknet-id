@@ -31,11 +31,11 @@ type Channel struct {
 }
 
 // NewChannel -
-func NewChannel(name string, pg postgres.Storage) Channel {
+func NewChannel(name string, pg postgres.Storage, subdomainsMap map[string]string) Channel {
 	ch := Channel{
 		name:     name,
 		storage:  pg,
-		blockCtx: newBlockContext(pg.Subdomains, pg.Addresses),
+		blockCtx: newBlockContext(pg.Subdomains, pg.Addresses, subdomainsMap),
 		store:    NewStore(pg),
 		ch:       make(chan *pb.Subscription, 1024*1024),
 		wg:       new(sync.WaitGroup),
@@ -181,7 +181,10 @@ func (channel Channel) parseAddrToDomainUpdate(ctx context.Context, blockCtx *Bl
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
 	}
-	return blockCtx.addDomains(ctx, data.Domain, data.Address, event.Contract.Id)
+	return blockCtx.addDomains(ctx, data.Domain, data.Address, storage.Address{
+		Id:   event.Contract.Id,
+		Hash: event.Contract.Hash,
+	})
 }
 
 func (channel Channel) parseDomainToAddrUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
@@ -189,7 +192,10 @@ func (channel Channel) parseDomainToAddrUpdate(ctx context.Context, blockCtx *Bl
 	if err := json.Unmarshal(event.ParsedData, &data); err != nil {
 		return errors.Wrap(err, "parsing data")
 	}
-	return blockCtx.addDomains(ctx, data.Domain, data.Address, event.Contract.Id)
+	return blockCtx.addDomains(ctx, data.Domain, data.Address, storage.Address{
+		Id:   event.Contract.Id,
+		Hash: event.Contract.Hash,
+	})
 }
 
 func (channel Channel) parseStarknetIdUpdate(ctx context.Context, blockCtx *BlockContext, event *pb.Event) error {
