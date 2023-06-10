@@ -1,9 +1,9 @@
 starknet_id:
   url: https://app.starknet.id/
-  requests_per_seconds: 3
+  requests_per_seconds: 10
 graphql:
   url: https://starknet-id.dipdup.net/v1/graphql
   requests_per_seconds: 3
 
 log_level: info
-start: 0
+parts: 10

@@ -7,7 +7,7 @@ type Config struct {
 	StarknetId starknetid.ApiConfig `yaml:"starknet_id" validate:"required"`
 	GraphQlApi GraphQlApiConfig     `yaml:"graphql" validate:"required"`
 	LogLevel   string               `yaml:"log_level" validate:"omitempty,oneof=debug trace info warn error fatal panic"`
-	Start      int                  `yaml:"start" validate:"omitempty,min=0"`
+	Parts      int                  `yaml:"parts" validate:"omitempty,min=0"`
 }
 
 // Substitute -

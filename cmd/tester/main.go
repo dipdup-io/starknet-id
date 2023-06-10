@@ -53,7 +53,11 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	tester := NewTester(cfg)
+	tester, err := NewTester(cfg)
+	if err != nil {
+		log.Panic().Err(err).Msg("create tester")
+		return
+	}
 
 	tester.Start(ctx)
 
