@@ -8,8 +8,12 @@ import (
 )
 
 const (
-	basicAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789-"
-	bigAlphabet   = "这来"
+	basicAlphabet     = "abcdefghijklmnopqrstuvwxyz0123456789-"
+	bigAlphabetString = "这来"
+)
+
+var (
+	bigAlphabet = []rune(bigAlphabetString)
 )
 
 func extractStars(s string) (string, int) {
@@ -26,13 +30,13 @@ func Decode(f data.Felt) (string, error) {
 
 		one      = decimal.NewFromInt(1)
 		basicLen = decimal.NewFromInt(int64(len(basicAlphabet)))
-		bigLen   = decimal.NewFromInt(2)
+		bigLen   = decimal.NewFromInt(int64(len(bigAlphabet)))
 		basicL   = basicLen.Add(one)
 		bigL     = bigLen.Add(one)
 	)
 
 	for num.IsPositive() {
-		var char byte
+		var char rune
 
 		code := num.Mod(basicL)
 		num = num.Div(basicL).Floor()
@@ -43,20 +47,20 @@ func Decode(f data.Felt) (string, error) {
 				code2 := num.Div(bigL).Floor()
 				num = nextFelt
 				if code2.IsZero() {
-					char = basicAlphabet[0]
+					char = rune(basicAlphabet[0])
 				} else {
 					char = bigAlphabet[code2.Sub(one).IntPart()]
 				}
 			} else {
-				index := num.Mod(bigLen).IntPart()
+				index := num.Mod(bigLen).BigInt().Int64()
 				char = bigAlphabet[index]
 				num = num.Div(bigLen).Floor()
 			}
 		} else {
-			char = basicAlphabet[code.IntPart()]
+			char = rune(basicAlphabet[code.IntPart()])
 		}
 
-		if err := decoded.WriteByte(char); err != nil {
+		if _, err := decoded.WriteRune(char); err != nil {
 			return "", err
 		}
 	}
@@ -66,13 +70,13 @@ func Decode(f data.Felt) (string, error) {
 		var (
 			first    = bigAlphabet[0]
 			last     = bigAlphabet[len(bigAlphabet)-1]
-			basicSym = basicAlphabet[1]
-			char     byte
+			basicSym = rune(basicAlphabet[1])
+			char     rune
 		)
 		if k%2 == 0 {
-			char = (last * byte(k/2-1)) + first + basicSym
+			char = (last * rune(k/2-1)) + first + basicSym
 		} else {
-			char = last * byte(k/2+1)
+			char = last * rune(k/2+1)
 		}
 
 		decodedString += string(char)

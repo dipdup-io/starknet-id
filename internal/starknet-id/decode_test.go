@@ -41,6 +41,10 @@ func TestDecode(t *testing.T) {
 			name: "deployer",
 			f:    data.Felt("0x1c81fe3d15f"),
 			want: "deployer",
+		}, {
+			name: "oj1fcb这r",
+			f:    data.Felt("0x3a3b3079e28"),
+			want: "oj1fcb这r",
 		},
 	}
 	for _, tt := range tests {
