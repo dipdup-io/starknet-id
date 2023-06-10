@@ -157,7 +157,7 @@ func (s Store) addDomains(ctx context.Context, tx sdk.Transaction, blockCtx *Blo
 			var (
 				query         string
 				timeIsZero    = v.Expiry.IsZero()
-				addressIsNull = len(v.AddressHash) > 0
+				addressIsNull = len(v.AddressHash) == 0
 			)
 
 			switch {

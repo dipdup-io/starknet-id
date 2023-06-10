@@ -40,8 +40,10 @@ func (t *Tester) work(ctx context.Context) {
 	defer t.wg.Done()
 
 	var (
-		limit = 100
-		end   bool
+		limit     = 100
+		processed = 0
+		failed    = 0
+		end       bool
 	)
 
 	for !end {
@@ -58,6 +60,7 @@ func (t *Tester) work(ctx context.Context) {
 			for i := range domains {
 				select {
 				case <-ctx.Done():
+					log.Info().Int("failed", failed).Int("processed", processed).Msg("report")
 					return
 				default:
 				}
@@ -78,22 +81,31 @@ func (t *Tester) work(ctx context.Context) {
 					log.Error().Str("starknet_id", resp.Addr).Msg("can't decode address")
 					continue
 				}
-				addVal, ok := big.NewInt(0).SetString(strings.TrimPrefix(domains[i].Address, "\\x"), 16)
-				if !ok {
-					log.Error().Str("graphql", domains[i].Address).Msg("can't decode address")
-					continue
+				domainAddr := strings.TrimPrefix(domains[i].Address, "\\x")
+				gqAddr := decimal.NewFromInt(0)
+				if domainAddr != "" {
+					addVal, ok := big.NewInt(0).SetString(domainAddr, 16)
+					if !ok {
+						log.Error().Str("graphql", domains[i].Address).Msg("can't decode address")
+						continue
+					}
+					gqAddr = decimal.NewFromBigInt(addVal, 0)
 				}
-				gqAddr := decimal.NewFromBigInt(addVal, 0)
 
 				if !gqAddr.Equal(siAddr) {
 					log.Error().Str("starknet_id", siAddr.String()).Str("graphql", gqAddr.String()).Msg("unequal")
+					failed += 1
 				}
+
+				processed += 1
 			}
 
 			t.offset += len(domains)
 			end = len(domains) < limit
 		}
 	}
+
+	log.Info().Int("failed", failed).Int("processed", processed).Msg("report")
 }
 
 func (t *Tester) getActualDomains(ctx context.Context, limit, offset int) ([]ActualDomain, error) {
