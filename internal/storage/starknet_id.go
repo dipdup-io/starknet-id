@@ -20,7 +20,8 @@ type StarknetId struct {
 	OwnerAddress []byte          `pg:",comment:Address hash of token owner"`
 	OwnerId      uint64          `pg:",comment:Owner identity of address"`
 
-	Owner Address `pg:"-" hasura:"table:address,field:owner_id,remote_field:id,type:oto,name:owner"`
+	Owner  Address `pg:"-" hasura:"table:address,field:owner_id,remote_field:id,type:oto,name:owner"`
+	Fields []Field `pg:"-" hasura:"table:field,field:starknet_id,remote_field:owner_id,type:otm,name:fields"`
 }
 
 // TableName -
