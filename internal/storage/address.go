@@ -16,12 +16,12 @@ type IAddress interface {
 // Address -
 type Address struct {
 	// nolint
-	tableName struct{} `pg:"address,comment:Address table"`
+	tableName struct{} `pg:"address" comment:"Address table"`
 
-	Id      uint64  `pg:"id,notnull,type:bigint,pk,comment:Unique internal identity"`
-	Hash    []byte  `pg:",comment:Starknet hash address"`
-	Height  uint64  `pg:",comment:Block number of the first address occurrence."`
-	ClassId *uint64 `pg:",comment:Internal class identity"`
+	Id      uint64  `pg:"id,notnull,type:bigint,pk" comment:"Unique internal identity"`
+	Hash    []byte  `comment:"Starknet hash address"`
+	Height  uint64  `comment:"Block number of the first address occurrence."`
+	ClassId *uint64 `comment:"Internal class identity"`
 }
 
 // TableName -

@@ -17,12 +17,12 @@ type IState interface {
 // State -
 type State struct {
 	// nolint
-	tableName struct{} `pg:"state,comment:Table contains current indexer's state"`
+	tableName struct{} `pg:"state" comment:"Table contains current indexer's state"`
 
-	ID         uint64    `pg:",comment:Unique internal identity"`
-	Name       string    `pg:",unique:state_name,comment:Indexer human-readable name"`
-	LastHeight uint64    `pg:",use_zero,comment:Last block height"`
-	LastTime   time.Time `pg:",comment:Time of last block"`
+	ID         uint64    `comment:"Unique internal identity"`
+	Name       string    `pg:",unique:state_name" comment:"Indexer human-readable name"`
+	LastHeight uint64    `pg:",use_zero" comment:"Last block height"`
+	LastTime   time.Time `comment:"Time of last block"`
 }
 
 // TableName -

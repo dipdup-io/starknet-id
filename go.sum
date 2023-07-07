@@ -18,8 +18,8 @@ github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047 h1:D8AqG
 github.com/dipdup-io/starknet-go-api v0.0.0-20230601120914-cb5965133047/go.mod h1:Dh1ZUXPbmjiIsfTYeYl3BzK8HuvQOTyrg2CcpQiSOD8=
 github.com/dipdup-io/starknet-indexer v0.0.0-20230608111641-c52d65847045 h1:6d0fjNAaJpS1d5OYT7tHDLy3+9077eKMgzGUXpYgOE4=
 github.com/dipdup-io/starknet-indexer v0.0.0-20230608111641-c52d65847045/go.mod h1:v3CYWLgA5NFuQ5O+ntw/vrG6LAG4XgtX1h1DDIvom2Q=
-github.com/dipdup-net/go-lib v0.2.34 h1:ug5Fm+LoX6HcMrbt8jxiJZ8d+ydhaVn/hrqaBsre6os=
-github.com/dipdup-net/go-lib v0.2.34/go.mod h1:oXILRskGR7bXvuFyc6B8prCKOjGJdDc76kMcf65EvcE=
+github.com/dipdup-net/go-lib v0.2.38 h1:IOS/B5yHrN9nKAQzc4qYePJsBtOKs07lYtD2ThBfO/k=
+github.com/dipdup-net/go-lib v0.2.38/go.mod h1:WdAlT2HZfoEAxrR01XtuPucVa5ibczuGk1WhqndYTkE=
 github.com/dipdup-net/indexer-sdk v0.0.0-20230607120505-500072a4250b h1:wWF1QkJ9kowXnsiT/Roj/+mnzuax1r5QQtICzkKcRxI=
 github.com/dipdup-net/indexer-sdk v0.0.0-20230607120505-500072a4250b/go.mod h1:WZsLr9ElN3ImgLmtwhK0YZ0WgzMxYyBPXfZR7Z3DZXA=
 github.com/dipdup-net/workerpool v0.0.2 h1:k0LMr52FdNj8AsV5KFgRLG7+tPxwLLJwHSDZqqXJESY=
@@ -49,6 +49,7 @@ github.com/goccy/go-json v0.10.2/go.mod h1:6MelG93GURQebXPDq3khkgXZkazVtN9CRI+MG
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/mock v1.1.1/go.mod h1:oTYuIxOrZwtPieC+H1uAHpcLFnEyAGVDL/k47Jfbm0A=
+github.com/golang/mock v1.6.0 h1:ErTB+efbowRARo13NNdxyJji2egdxLGQhRaY+DUumQc=
 github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/protobuf v1.3.2/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/protobuf v1.4.0-rc.1/go.mod h1:ceaxUfeHdC40wWswd/P6IGgMaK3YpKi5j83Wpe3EHw8=
