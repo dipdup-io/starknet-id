@@ -48,31 +48,30 @@ func NewStore(pg postgres.Storage) Store {
 
 // Save -
 func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
-	if blockCtx.isEmpty() {
-		return nil
-	}
 	since := time.Now()
-
 	tx, err := s.pg.Transactable.BeginTransaction(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Close(ctx)
 
-	if err := s.saveAddresses(ctx, tx, blockCtx); err != nil {
-		return tx.HandleError(ctx, err)
-	}
-	if err := s.saveStarknetId(ctx, tx, blockCtx); err != nil {
-		return tx.HandleError(ctx, err)
-	}
-	if err := s.saveSubdomains(ctx, tx, blockCtx); err != nil {
-		return tx.HandleError(ctx, err)
-	}
-	if err := s.addDomains(ctx, tx, blockCtx); err != nil {
-		return tx.HandleError(ctx, err)
-	}
-	if err := s.saveFields(ctx, tx, blockCtx); err != nil {
-		return tx.HandleError(ctx, err)
+	if !blockCtx.isEmpty() {
+
+		if err := s.saveAddresses(ctx, tx, blockCtx); err != nil {
+			return tx.HandleError(ctx, err)
+		}
+		if err := s.saveStarknetId(ctx, tx, blockCtx); err != nil {
+			return tx.HandleError(ctx, err)
+		}
+		if err := s.saveSubdomains(ctx, tx, blockCtx); err != nil {
+			return tx.HandleError(ctx, err)
+		}
+		if err := s.addDomains(ctx, tx, blockCtx); err != nil {
+			return tx.HandleError(ctx, err)
+		}
+		if err := s.saveFields(ctx, tx, blockCtx); err != nil {
+			return tx.HandleError(ctx, err)
+		}
 	}
 
 	if _, err := tx.Exec(ctx, `INSERT INTO state (name, last_height, last_time)
