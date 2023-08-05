@@ -56,7 +56,6 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	defer tx.Close(ctx)
 
 	if !blockCtx.isEmpty() {
-
 		if err := s.saveAddresses(ctx, tx, blockCtx); err != nil {
 			return tx.HandleError(ctx, err)
 		}
