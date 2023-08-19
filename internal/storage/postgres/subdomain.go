@@ -14,7 +14,7 @@ type Subdomain struct {
 }
 
 // NewSubdomain -
-func NewSubdomain(db *database.PgGo) *Subdomain {
+func NewSubdomain(db *database.Bun) *Subdomain {
 	return &Subdomain{
 		Table: postgres.NewTable[*storage.Subdomain](db),
 	}
@@ -22,6 +22,8 @@ func NewSubdomain(db *database.PgGo) *Subdomain {
 
 // GetByResolverId -
 func (s *Subdomain) GetByResolverId(ctx context.Context, resolverId uint64) (result storage.Subdomain, err error) {
-	err = s.DB().ModelContext(ctx, &result).Where("resolver_id = ?", resolverId).Limit(1).Select(&result)
+	err = s.DB().NewSelect().Model(&result).
+		Where("resolver_id = ?", resolverId).
+		Limit(1).Scan(ctx)
 	return
 }

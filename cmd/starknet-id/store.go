@@ -7,9 +7,9 @@ import (
 	"github.com/dipdup-io/starknet-id/internal/storage"
 	"github.com/dipdup-io/starknet-id/internal/storage/postgres"
 	sdk "github.com/dipdup-net/indexer-sdk/pkg/storage"
-	"github.com/go-pg/pg/v10"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"github.com/uptrace/bun"
 )
 
 // Action
@@ -49,7 +49,7 @@ func NewStore(pg postgres.Storage) Store {
 // Save -
 func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	since := time.Now()
-	tx, err := s.pg.Transactable.BeginTransaction(ctx)
+	tx, err := postgres.BeginTransaction(ctx, s.pg.Transactable)
 	if err != nil {
 		return err
 	}
@@ -73,12 +73,7 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `INSERT INTO state (name, last_height, last_time)
-		VALUES (?,?,?)
-		ON CONFLICT (name)
-		DO
-		UPDATE SET last_height = excluded.last_height, last_time = excluded.last_time
-	`, blockCtx.state.Name, blockCtx.state.LastHeight, blockCtx.state.LastTime); err != nil {
+	if err := tx.SaveState(ctx, blockCtx.state); err != nil {
 		return tx.HandleError(ctx, err)
 	}
 
@@ -140,7 +135,7 @@ func (s Store) saveStarknetId(ctx context.Context, tx sdk.Transaction, blockCtx 
 			}
 		}
 		if len(burned) > 0 {
-			if _, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id IN (?)`, pg.In(burned)); err != nil {
+			if _, err := tx.Exec(ctx, `DELETE FROM starknet_id WHERE starknet_id IN (?)`, bun.In(burned)); err != nil {
 				return errors.Wrap(err, "saving burned starknet id")
 			}
 		}

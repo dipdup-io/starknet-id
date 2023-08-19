@@ -12,7 +12,7 @@ type Field struct {
 }
 
 // NewField -
-func NewField(db *database.PgGo) *Field {
+func NewField(db *database.Bun) *Field {
 	return &Field{
 		Table: postgres.NewTable[*storage.Field](db),
 	}

@@ -1,0 +1,10 @@
+- registration_date: '2023-01-26T17:37:33+00:00'
+  id: 1
+  registration_height: 19221
+  resolver_id: 1057463
+  subdomain: braavos
+- registration_date: '2023-05-09T15:20:52+00:00'
+  id: 2
+  registration_height: 50359
+  resolver_id: 1673800
+  subdomain: xplorer

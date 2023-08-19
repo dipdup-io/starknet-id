@@ -7,10 +7,9 @@ import (
 	"github.com/dipdup-net/go-lib/config"
 	"github.com/dipdup-net/go-lib/database"
 	"github.com/dipdup-net/indexer-sdk/pkg/storage/postgres"
-	"github.com/go-pg/pg/v10"
-	"github.com/go-pg/pg/v10/orm"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"github.com/uptrace/bun"
 )
 
 // Storage -
@@ -45,22 +44,19 @@ func Create(ctx context.Context, cfg config.Database) (Storage, error) {
 	return s, nil
 }
 
-func initDatabase(ctx context.Context, conn *database.PgGo) error {
-	for _, data := range models.Models {
-		if err := conn.DB().WithContext(ctx).Model(data).CreateTable(&orm.CreateTableOptions{
-			IfNotExists: true,
-		}); err != nil {
-			if err := conn.Close(); err != nil {
-				return err
-			}
-			return err
-		}
-	}
-
+func initDatabase(ctx context.Context, conn *database.Bun) error {
 	data := make([]any, len(models.Models))
 	for i := range models.Models {
 		data[i] = models.Models[i]
 	}
+
+	if err := database.CreateTables(ctx, conn, data...); err != nil {
+		if err := conn.Close(); err != nil {
+			return err
+		}
+		return err
+	}
+
 	if err := database.MakeComments(ctx, conn, data...); err != nil {
 		return errors.Wrap(err, "make comments")
 	}
@@ -68,9 +64,9 @@ func initDatabase(ctx context.Context, conn *database.PgGo) error {
 	return createIndices(ctx, conn)
 }
 
-func createIndices(ctx context.Context, conn *database.PgGo) error {
+func createIndices(ctx context.Context, conn *database.Bun) error {
 	log.Info().Msg("creating indexes...")
-	return conn.DB().RunInTransaction(ctx, func(tx *pg.Tx) error {
+	return conn.DB().RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		// Address
 		if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS address_hash_idx ON address (hash)`); err != nil {
 			return err

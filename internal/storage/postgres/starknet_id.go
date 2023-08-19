@@ -12,7 +12,7 @@ type StarknetId struct {
 }
 
 // NewStarknetId -
-func NewStarknetId(db *database.PgGo) *StarknetId {
+func NewStarknetId(db *database.Bun) *StarknetId {
 	return &StarknetId{
 		Table: postgres.NewTable[*storage.StarknetId](db),
 	}

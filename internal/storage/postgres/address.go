@@ -14,7 +14,7 @@ type Address struct {
 }
 
 // NewAddress -
-func NewAddress(db *database.PgGo) *Address {
+func NewAddress(db *database.Bun) *Address {
 	return &Address{
 		Table: postgres.NewTable[*storage.Address](db),
 	}
@@ -22,6 +22,6 @@ func NewAddress(db *database.PgGo) *Address {
 
 // GetByHash -
 func (a *Address) GetByHash(ctx context.Context, hash []byte) (address storage.Address, err error) {
-	err = a.DB().ModelContext(ctx, &address).Where("hash = ?", hash).First()
+	err = a.DB().NewSelect().Model(&address).Where("hash = ?", hash).Limit(1).Scan(ctx)
 	return
 }

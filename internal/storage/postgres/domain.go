@@ -12,7 +12,7 @@ type Domain struct {
 }
 
 // NewDomain -
-func NewDomain(db *database.PgGo) *Domain {
+func NewDomain(db *database.Bun) *Domain {
 	return &Domain{
 		Table: postgres.NewTable[*storage.Domain](db),
 	}
