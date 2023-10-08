@@ -90,11 +90,11 @@ func (s Store) Save(ctx context.Context, blockCtx *BlockContext) error {
 	return nil
 }
 
-func (s Store) saveAddresses(ctx context.Context, tx sdk.Transaction, blockCtx *BlockContext) error {
+func (s Store) saveAddresses(ctx context.Context, tx postgres.Transaction, blockCtx *BlockContext) error {
 	if blockCtx.addresses.Len() == 0 {
 		return nil
 	}
-	addresses := make([]any, 0)
+	addresses := make([]*storage.Address, 0)
 	if err := blockCtx.addresses.Range(func(k string, v *storage.Address) (bool, error) {
 		addresses = append(addresses, v)
 		return false, nil
@@ -102,7 +102,7 @@ func (s Store) saveAddresses(ctx context.Context, tx sdk.Transaction, blockCtx *
 		return err
 	}
 
-	if err := tx.BulkSave(ctx, addresses); err != nil {
+	if err := tx.SaveAddress(ctx, addresses...); err != nil {
 		return errors.Wrap(err, "saving addresses")
 	}
 	return nil

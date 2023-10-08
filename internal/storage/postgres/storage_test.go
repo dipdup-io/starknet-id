@@ -141,6 +141,69 @@ func (s *StorageTestSuite) TestTxSaveState() {
 	s.Require().EqualValues(101, response.LastHeight)
 }
 
+func (s *StorageTestSuite) TestTxSaveAddress() {
+	ctx, ctxCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer ctxCancel()
+
+	tx, err := BeginTransaction(ctx, s.storage.Transactable)
+	s.Require().NoError(err)
+	defer tx.Close(ctx)
+
+	classId := uint64(1)
+	err = tx.SaveAddress(ctx, &storage.Address{
+		Id:      1,
+		Hash:    []byte{1},
+		Height:  100,
+		ClassId: &classId,
+	})
+	s.Require().NoError(err)
+
+	err = tx.Flush(ctx)
+	s.Require().NoError(err)
+
+	address, err := s.storage.Addresses.GetByID(ctx, 1)
+	s.Require().NoError(err)
+
+	s.Require().EqualValues(1, address.Id)
+	s.Require().EqualValues(100, address.Height)
+	s.Require().NotNil(address.ClassId)
+	s.Require().EqualValues(1, *address.ClassId)
+	s.Require().Equal([]byte{1}, address.Hash)
+}
+
+func (s *StorageTestSuite) TestTxSaveAddressUpdate() {
+	ctx, ctxCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer ctxCancel()
+
+	tx, err := BeginTransaction(ctx, s.storage.Transactable)
+	s.Require().NoError(err)
+	defer tx.Close(ctx)
+
+	b, err := hex.DecodeString("020cfa74ee3564b4cd5435cdace0f9c4d43b939620e4a0bb5076105df0a626c6")
+	s.Require().NoError(err)
+
+	classIdNew := uint64(2)
+	err = tx.SaveAddress(ctx, &storage.Address{
+		Id:      2,
+		Hash:    b,
+		Height:  101,
+		ClassId: &classIdNew,
+	})
+	s.Require().NoError(err)
+
+	err = tx.Flush(ctx)
+	s.Require().NoError(err)
+
+	address, err := s.storage.Addresses.GetByID(ctx, 2)
+	s.Require().NoError(err)
+
+	s.Require().EqualValues(2, address.Id)
+	s.Require().EqualValues(0, address.Height)
+	s.Require().NotNil(address.ClassId)
+	s.Require().EqualValues(2, *address.ClassId)
+	s.Require().Equal(b, address.Hash)
+}
+
 func TestSuiteStorage_Run(t *testing.T) {
 	suite.Run(t, new(StorageTestSuite))
 }

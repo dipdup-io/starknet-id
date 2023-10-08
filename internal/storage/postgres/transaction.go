@@ -18,12 +18,23 @@ func BeginTransaction(ctx context.Context, tx storage.Transactable) (Transaction
 	return Transaction{t}, err
 }
 
-// SaveAddress -
+// SaveState -
 func (t Transaction) SaveState(ctx context.Context, state *models.State) error {
 	_, err := t.Tx().NewInsert().Model(state).
 		On("CONFLICT (name) DO UPDATE").
 		Set("last_height = excluded.last_height").
 		Set("last_time = excluded.last_time").
+		Exec(ctx)
+	return err
+}
+
+func (t Transaction) SaveAddress(ctx context.Context, addresses ...*models.Address) error {
+	if len(addresses) == 0 {
+		return nil
+	}
+	_, err := t.Tx().NewInsert().Model(&addresses).
+		On("CONFLICT (id) DO UPDATE").
+		Set("class_id = excluded.class_id").
 		Exec(ctx)
 	return err
 }
