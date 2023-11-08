@@ -4,10 +4,10 @@ import starknetid "github.com/dipdup-io/starknet-id/internal/starknet-id"
 
 // Config -
 type Config struct {
-	StarknetId starknetid.ApiConfig `yaml:"starknet_id" validate:"required"`
-	GraphQlApi GraphQlApiConfig     `yaml:"graphql" validate:"required"`
-	LogLevel   string               `yaml:"log_level" validate:"omitempty,oneof=debug trace info warn error fatal panic"`
-	Parts      int                  `yaml:"parts" validate:"omitempty,min=0"`
+	StarknetId starknetid.ApiConfig `validate:"required"                                                yaml:"starknet_id"`
+	GraphQlApi GraphQlApiConfig     `validate:"required"                                                yaml:"graphql"`
+	LogLevel   string               `validate:"omitempty,oneof=debug trace info warn error fatal panic" yaml:"log_level"`
+	Parts      int                  `validate:"omitempty,min=0"                                         yaml:"parts"`
 }
 
 // Substitute -

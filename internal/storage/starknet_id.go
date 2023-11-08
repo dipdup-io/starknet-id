@@ -15,8 +15,8 @@ type IStarknetId interface {
 type StarknetId struct {
 	bun.BaseModel `bun:"starknet_id" comment:"Starknet id table"`
 
-	Id           uint64          `bun:"id,pk,autoincrement" comment:"Unique internal identity"`
-	StarknetId   decimal.Decimal `bun:",unique,type:numeric" comment:"Starknet Id (token id)"`
+	Id           uint64          `bun:"id,pk,autoincrement"             comment:"Unique internal identity"`
+	StarknetId   decimal.Decimal `bun:",unique,type:numeric"            comment:"Starknet Id (token id)"`
 	OwnerAddress []byte          `comment:"Address hash of token owner"`
 	OwnerId      uint64          `comment:"Owner identity of address"`
 

@@ -25,8 +25,8 @@ type Field struct {
 	bun.BaseModel `bun:"field" comment:"Field table"`
 
 	Id        uint64          `bun:"id,pk,autoincrement" comment:"Unique internal identity"`
-	OwnerId   decimal.Decimal `bun:",type:numeric,use_zero" comment:"Starknet Id (token id)"`
-	Namespace FieldNamespace  `bun:",type:SMALLINT" comment:"Kind of namespace"`
+	OwnerId   decimal.Decimal `bun:",type:numeric"       comment:"Starknet Id (token id)"`
+	Namespace FieldNamespace  `bun:",type:SMALLINT"      comment:"Kind of namespace"`
 	Name      string          `comment:"Field name"`
 	Value     []byte          `comment:"Field value"`
 
