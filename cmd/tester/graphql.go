@@ -13,8 +13,8 @@ import (
 
 // GraphQlApiConfig -
 type GraphQlApiConfig struct {
-	Url               string `yaml:"url" validate:"required,url"`
-	RequestsPerSecond int    `yaml:"requests_per_seconds" validate:"required,min=1"`
+	Url               string `validate:"required,url"   yaml:"url"`
+	RequestsPerSecond int    `validate:"required,min=1" yaml:"requests_per_seconds"`
 }
 
 // ActualDomainsResponse -

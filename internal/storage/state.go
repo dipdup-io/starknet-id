@@ -19,8 +19,8 @@ type IState interface {
 type State struct {
 	bun.BaseModel `bun:"state" comment:"Table contains current indexer's state"`
 
-	ID         uint64    `bun:"id,pk,autoincrement" comment:"Unique internal identity"`
-	Name       string    `bun:",unique:state_name" comment:"Indexer human-readable name"`
+	ID         uint64    `bun:"id,pk,autoincrement"    comment:"Unique internal identity"`
+	Name       string    `bun:",unique:state_name"     comment:"Indexer human-readable name"`
 	LastHeight uint64    `comment:"Last block height"`
 	LastTime   time.Time `comment:"Time of last block"`
 }

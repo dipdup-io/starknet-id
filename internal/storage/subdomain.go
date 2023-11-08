@@ -19,11 +19,11 @@ type ISubdomain interface {
 type Subdomain struct {
 	bun.BaseModel `bun:"subdomain" comment:"Subdomain's table"`
 
-	Id                 uint64    `bun:"id,pk,autoincrement" comment:"Unique internal identity"`
+	Id                 uint64    `bun:"id,pk,autoincrement"                                    comment:"Unique internal identity"`
 	RegistrationHeight uint64    `comment:"Height of first event about subdomain registration"`
 	RegistrationDate   time.Time `comment:"Date of first event about subdomain registration"`
 	ResolverId         uint64    `comment:"Resolver's address id from main indexer"`
-	Subdomain          string    `bun:",unique" comment:"Subdomain string"`
+	Subdomain          string    `bun:",unique"                                                comment:"Subdomain string"`
 
 	Resolver Address `bun:"-" hasura:"table:address,field:resolver_id,remote_field:id,type:oto,name:resolver"`
 }

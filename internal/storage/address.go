@@ -18,10 +18,10 @@ type IAddress interface {
 type Address struct {
 	bun.BaseModel `bun:"address" comment:"Address table"`
 
-	Id      uint64  `bun:"id,notnull,type:bigint,pk" comment:"Unique internal identity"`
+	Id      uint64  `bun:"id,notnull,type:bigint,pk"                         comment:"Unique internal identity"`
 	Hash    []byte  `comment:"Starknet hash address"`
 	Height  uint64  `comment:"Block number of the first address occurrence."`
-	ClassId *uint64 `bun:",nullzero" comment:"Internal class identity"`
+	ClassId *uint64 `bun:",nullzero"                                         comment:"Internal class identity"`
 }
 
 // TableName -

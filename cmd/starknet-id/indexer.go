@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/dipdup-io/starknet-go-api/pkg/data"
@@ -27,29 +26,29 @@ const (
 
 // Indexer -
 type Indexer struct {
+	modules.BaseModule
+
 	client         *grpc.Client
 	storage        postgres.Storage
-	input          *modules.Input
 	channels       map[uint64]Channel
 	channelsByName map[string]Channel
 	subscriptions  map[string]grpc.Subscription
 	subdomains     map[string]string
-
-	wg *sync.WaitGroup
 }
 
 // NewIndexer -
 func NewIndexer(pg postgres.Storage, client *grpc.Client, subdomains map[string]string) *Indexer {
 	indexer := &Indexer{
+		BaseModule:     modules.New("starknet_id_indexer"),
 		client:         client,
 		storage:        pg,
-		input:          modules.NewInput(InputName),
 		channels:       make(map[uint64]Channel),
 		channelsByName: make(map[string]Channel),
 		subscriptions:  make(map[string]grpc.Subscription),
 		subdomains:     subdomains,
-		wg:             new(sync.WaitGroup),
 	}
+
+	indexer.CreateInput(InputName)
 
 	return indexer
 }
@@ -63,16 +62,8 @@ func (indexer *Indexer) Start(ctx context.Context) {
 
 	indexer.client.Start(ctx)
 
-	indexer.wg.Add(1)
-	go indexer.reconnectThread(ctx)
-
-	indexer.wg.Add(1)
-	go indexer.listen(ctx)
-}
-
-// Name -
-func (indexer *Indexer) Name() string {
-	return "starknet_id_indexer"
+	indexer.G.GoCtx(ctx, indexer.reconnectThread)
+	indexer.G.GoCtx(ctx, indexer.listen)
 }
 
 // Subscribe -
@@ -119,24 +110,8 @@ func (indexer *Indexer) init(ctx context.Context) error {
 	}
 }
 
-// Input - returns input by name
-func (indexer *Indexer) Input(name string) (*modules.Input, error) {
-	switch name {
-	case InputName:
-		return indexer.input, nil
-	default:
-		return nil, errors.Wrap(modules.ErrUnknownInput, name)
-	}
-}
-
 func (indexer *Indexer) listen(ctx context.Context) {
-	defer indexer.wg.Done()
-
-	input, err := indexer.Input(InputName)
-	if err != nil {
-		log.Err(err).Msg("unknown input")
-		return
-	}
+	input := indexer.MustInput(InputName)
 
 	for {
 		select {
@@ -165,8 +140,6 @@ func (indexer *Indexer) listen(ctx context.Context) {
 }
 
 func (indexer *Indexer) reconnectThread(ctx context.Context) {
-	defer indexer.wg.Done()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -247,21 +220,6 @@ func (indexer *Indexer) actualFilters(ctx context.Context, ch Channel, sub *grpc
 	return nil
 }
 
-// Output - returns output by name
-func (indexer *Indexer) Output(name string) (*modules.Output, error) {
-	return nil, errors.Wrap(modules.ErrUnknownOutput, name)
-}
-
-// AttachTo - attach input to output with name
-func (indexer *Indexer) AttachTo(name string, input *modules.Input) error {
-	output, err := indexer.Output(name)
-	if err != nil {
-		return err
-	}
-	output.Attach(input)
-	return nil
-}
-
 // Unsubscribe -
 func (indexer *Indexer) Unsubscribe(ctx context.Context) error {
 	for subId, channel := range indexer.channels {
@@ -276,16 +234,12 @@ func (indexer *Indexer) Unsubscribe(ctx context.Context) error {
 
 // Close - gracefully stops module
 func (indexer *Indexer) Close() error {
-	indexer.wg.Wait()
+	indexer.G.Wait()
 
 	for _, channel := range indexer.channels {
 		if err := channel.Close(); err != nil {
 			return err
 		}
-	}
-
-	if err := indexer.input.Close(); err != nil {
-		return err
 	}
 
 	return nil
