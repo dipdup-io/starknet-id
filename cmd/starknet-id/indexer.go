@@ -200,6 +200,9 @@ func (indexer *Indexer) actualFilters(ctx context.Context, ch Channel, sub *grpc
 			sub.EventFilter[i].Height = &grpc.IntegerFilter{
 				Gt: ch.blockCtx.state.LastHeight,
 			}
+			sub.EventFilter[i].Time = &grpc.TimeFilter{
+				Gt: 1701088623,
+			}
 		}
 
 	}
