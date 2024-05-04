@@ -197,9 +197,9 @@ func (indexer *Indexer) resubscribe(ctx context.Context, id uint64) error {
 func (indexer *Indexer) actualFilters(ctx context.Context, ch Channel, sub *grpc.Subscription) error {
 	if sub.EventFilter != nil {
 		for i := range sub.EventFilter {
-			sub.EventFilter[i].Height = &grpc.IntegerFilter{
-				Gt: ch.blockCtx.state.LastHeight,
-			}
+			// sub.EventFilter[i].Height = &grpc.IntegerFilter{
+			// 	Gt: ch.blockCtx.state.LastHeight,
+			// }
 			sub.EventFilter[i].Time = &grpc.TimeFilter{
 				Gt: 1701088623,
 			}
